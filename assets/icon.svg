@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF7F7F;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF6B6B;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="playGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#F8F8F8;stop-opacity:0.85" />
+    </linearGradient>
+    <linearGradient id="editGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFB3BA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFAAA5;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="240" fill="url(#backgroundGradient)" stroke="#E55555" stroke-width="8"/>
+  <polygon points="180,160 180,352 380,256" fill="url(#playGradient)" stroke="#E0E0E0" stroke-width="2"/>
+
+  <g transform="translate(360,140) rotate(45)">
+    <rect x="0" y="0" width="35" height="160" fill="url(#editGradient)" stroke="#E55555" stroke-width="3" rx="5"/>
+  </g>
+</svg>

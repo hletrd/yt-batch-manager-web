@@ -1,0 +1,43 @@
+{
+  "name": "yt-batch-manager-web",
+  "version": "1.0.4",
+  "description": "YouTube Batch Manager to manage the videos in your channel in a single page.",
+  "homepage": "https://github.com/hletrd/yt-batch-manager-web",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hletrd/yt-batch-manager-web.git"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix"
+  },
+  "keywords": [
+    "youtube",
+    "batch",
+    "manager",
+    "web",
+    "typescript"
+  ],
+  "author": "Jiyong Youn",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.35.0",
+    "@typescript-eslint/parser": "^8.35.0",
+    "eslint": "^9.29.0",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@googleapis/youtube": "^26.0.1",
+    "google-auth-library": "^10.1.0"
+  }
+}
