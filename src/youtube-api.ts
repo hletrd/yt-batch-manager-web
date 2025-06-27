@@ -138,8 +138,8 @@ export class YouTubeAPI {
 
   private async loadCredentials(): Promise<void> {
     try {
-      console.log('Loading credentials from /credentials.json');
-      const response = await fetch('/credentials.json');
+      console.log('Loading credentials from credentials.json');
+      const response = await fetch('./credentials.json');
       if (response.ok) {
         this.credentials = await response.json();
         console.log('Credentials loaded successfully');
