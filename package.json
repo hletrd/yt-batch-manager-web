@@ -10,8 +10,8 @@
   "main": "dist/index.js",
   "scripts": {
     "clean": "rimraf dist",
-    "build": "tsc -p tsconfig.json && cp src/index.html dist/ && cp -r src/i18n dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
-    "build:watch": "tsc -p tsconfig.json --watch && cp src/index.html dist/ && cp -r src/i18n dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
+    "build": "tsc -p tsconfig.json && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
+    "build:watch": "tsc -p tsconfig.json --watch && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
     "serve": "http-server dist -p 3000 -c-1 --cors",
     "dev": "npm run build && concurrently \"npm run build:watch\" \"npm run serve\"",
     "start": "http-server dist -p 3000 -c-1 --cors",
