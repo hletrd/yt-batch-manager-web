@@ -163,11 +163,11 @@ export class YouTubeAPI {
     if (this.credentials?.web) {
       this.config.clientId = this.credentials.web.client_id;
       this.config.clientSecret = this.credentials.web.client_secret;
-      this.config.redirectUri = this.credentials.web.redirect_uris?.[0] || window.location.origin;
+      this.config.redirectUri = window.location.origin;
     } else if (this.credentials?.installed) {
       this.config.clientId = this.credentials.installed.client_id;
       this.config.clientSecret = this.credentials.installed.client_secret;
-      this.config.redirectUri = this.credentials.installed.redirect_uris?.[0] || window.location.origin;
+      this.config.redirectUri = window.location.origin;
     }
   }
 
