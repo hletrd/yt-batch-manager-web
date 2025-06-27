@@ -45,6 +45,11 @@ jobs:
       run: |
         echo '${{ secrets.CREDENTIALS }}' > dist/credentials.json
 
+    - name: Add cache busting
+      run: |
+        CACHE_BUST=$(date +%s)
+        sed -i "s/src=\"\.\/app\.js\"/src=\".\/app.js?v=$CACHE_BUST\"/g" dist/index.html
+
     - name: Minify
       run: |
         find dist -name "*.js" -type f -exec sh -c 'npx terser "$1" --compress --mangle --ecma 2022 -o "$1"' _ {} \;
