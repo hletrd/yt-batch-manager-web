@@ -1,0 +1,140 @@
+{
+  "app": {
+    "title": "YT Batch Manager",
+    "noVideosLoaded": "No videos loaded",
+    "noVideosLoadedDescription": "Click \"Load from YouTube\" to fetch your videos, or \"Load from File\" to load a previous backup.",
+    "published": "Published",
+    "loading": "Loading...",
+    "currentlyManagingChannel": "Currently managing channel"
+  },
+  "menu": {
+    "sort": "Sort",
+    "file": "File",
+    "exportVideos": "Export Video Data",
+    "importVideos": "Import Video Data",
+    "logout": "Logout",
+    "clearCache": "Clear Cache",
+    "refresh": "Refresh",
+    "saveAll": "Save All Changes",
+    "toggleTheme": "Toggle theme"
+  },
+  "sort": {
+    "dateDesc": "Latest First",
+    "dateAsc": "Oldest First",
+    "titleAsc": "Title A-Z",
+    "titleDesc": "Title Z-A",
+    "viewsDesc": "Most Views",
+    "viewsAsc": "Least Views"
+  },
+  "auth": {
+    "title": "YouTube Authentication Required",
+    "description": "Please authenticate with your YouTube account to manage your videos.",
+    "button": "Authenticate with YouTube"
+  },
+  "errors": {
+    "general": "Error"
+  },
+  "loading": {
+    "general": "Loading...",
+    "authenticating": "Authenticating...",
+    "authenticatingSubtext": "Please wait while we connect to YouTube",
+    "processingAuthentication": "Processing authentication...",
+    "processingAuthSubtext": "Please wait while we complete the authentication process",
+    "loadingFromCache": "Loading videos from cache...",
+    "loadingFromCacheSubtext": "Using cached video data",
+    "loadingFromYouTube": "Loading videos from YouTube...",
+    "loadingFromYouTubeSubtext": "This may take a while for channels with many videos",
+    "importingData": "Importing video data..."
+  },
+  "find": {
+    "placeholder": "Find in videos...",
+    "previousButton": "Previous (Shift+F3)",
+    "nextButton": "Next (F3)",
+    "closeButton": "Close (Esc)"
+  },
+  "form": {
+    "title": "Title",
+    "description": "Description",
+    "tags": "Tags",
+    "tagsPlaceholder": "Add tags (comma-separated)"
+  },
+  "video": {
+    "title": "Title",
+    "description": "Description",
+    "privacy": "Privacy Status",
+    "tags": "Tags",
+    "saveChanges": "Save Changes",
+    "views": "views"
+  },
+  "buttons": {
+    "updateVideoInfo": "Update Video",
+    "updateVideoInfoUpdating": "Updating...",
+    "authenticateWithYouTube": "Authenticate with YouTube",
+    "removeSavedCredentials": "Remove Saved Credentials",
+    "deleteCache": "Delete Thumbnail Cache",
+    "loadFromYouTube": "Refresh Videos",
+    "logout": "Logout",
+    "saveAll": "Save All",
+    "saveAllWithCount": "Save All ({count})"
+  },
+  "navigation": {
+    "sortBy": "Sort by",
+    "advanced": "Functions"
+  },
+  "sorting": {
+    "dateNewestFirst": "Date (Newest First)",
+    "dateOldestFirst": "Date (Oldest First)",
+    "titleAZ": "Title (A-Z)",
+    "titleZA": "Title (Z-A)"
+  },
+  "fileOperations": {
+    "loadFromJSON": "Load from JSON",
+    "saveAsJSON": "Save as JSON"
+  },
+  "privacy": {
+    "public": "Public",
+    "private": "Private",
+    "unlisted": "Unlisted"
+  },
+  "status": {
+    "authenticationSuccessful": "Authentication successful!",
+    "authenticationFailed": "Authentication failed",
+    "loggedOut": "Successfully logged out",
+    "credentialsLoaded": "Credentials loaded",
+    "videoUpdated": "Video updated successfully",
+    "videosExported": "Exported {count} videos",
+    "videosImported": "Imported {count} videos",
+    "videosLoaded": "Loaded {count} videos",
+    "videosSaved": "Successfully updated {count} videos",
+    "cacheCleared": "Cache cleared successfully",
+    "noChangesToSave": "No changes to save",
+    "noVideosToExport": "No videos to export",
+    "invalidFileFormat": "Invalid file format",
+    "invalidVideoData": "Invalid video data format",
+    "failedToParseData": "Failed to parse video data",
+    "failedToSelectFile": "Failed to select file",
+    "failedToExportVideos": "Failed to export videos",
+    "failedToUpdateVideo": "Failed to update video",
+    "failedToSaveChanges": "Failed to save changes",
+    "failedToLoadVideos": "Failed to load videos",
+    "failedToLogout": "Failed to logout",
+    "failedToClearCache": "Failed to clear cache",
+    "credentialsNotLoaded": "Credentials not loaded.",
+    "cached": "(Cached)",
+    "findMatch": "Match {current} of {total}",
+    "noMatchesFound": "No matches found for \"{query}\"",
+    "saveInProgress": "Save operation in progress",
+    "batchSaveComplete": "Batch save completed: {successful} successful, {failed} failed out of {total} total",
+    "batchSaveFailed": "Batch save failed: {failed} videos failed to save",
+    "savingBatch": "Saving videos ({current}/{total})",
+    "processingVideo": "Processing video {videoNumber}",
+    "credentialsRemoved": "Credentials removed successfully",
+    "failedToRemoveCredentials": "Failed to remove credentials",
+    "failedToLoadCredentials": "Failed to load credentials",
+    "failedToParseCredentialsFile": "Failed to parse credentials file"
+  },
+  "credentials": {
+    "notFound": "No Credentials Found",
+    "notFoundDescription": "Please check the credentials.json file in the src/ directory."
+  }
+}

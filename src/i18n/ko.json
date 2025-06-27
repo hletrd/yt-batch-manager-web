@@ -1,0 +1,140 @@
+{
+  "app": {
+    "title": "YT Batch Manager",
+    "noVideosLoaded": "로드된 동영상이 없습니다",
+    "noVideosLoadedDescription": "\"YouTube에서 로드\"를 클릭하여 동영상을 가져오거나 \"파일에서 로드\"를 클릭하여 이전 백업을 로드하세요.",
+    "published": "게시됨",
+    "loading": "로딩 중...",
+    "currentlyManagingChannel": "현재 관리 중인 채널"
+  },
+  "menu": {
+    "sort": "정렬",
+    "file": "파일",
+    "exportVideos": "동영상 데이터 내보내기",
+    "importVideos": "동영상 데이터 가져오기",
+    "logout": "로그아웃",
+    "clearCache": "캐시 삭제",
+    "refresh": "새로고침",
+    "saveAll": "모든 변경사항 저장",
+    "toggleTheme": "테마 변경"
+  },
+  "sort": {
+    "dateDesc": "최신순",
+    "dateAsc": "오래된순",
+    "titleAsc": "제목 오름차순",
+    "titleDesc": "제목 내림차순",
+    "viewsDesc": "조회수 높은순",
+    "viewsAsc": "조회수 낮은순"
+  },
+  "auth": {
+    "title": "YouTube 인증 필요",
+    "description": "동영상을 관리하려면 YouTube 계정으로 인증해주세요.",
+    "button": "YouTube로 인증하기"
+  },
+  "errors": {
+    "general": "오류"
+  },
+  "loading": {
+    "general": "로딩 중...",
+    "authenticating": "인증 중...",
+    "authenticatingSubtext": "YouTube에 연결하는 동안 잠시 기다려주세요",
+    "processingAuthentication": "인증 처리 중...",
+    "processingAuthSubtext": "인증 과정을 완료하는 동안 잠시 기다려주세요",
+    "loadingFromCache": "캐시에서 동영상 로딩 중...",
+    "loadingFromCacheSubtext": "캐시된 동영상 데이터 사용 중",
+    "loadingFromYouTube": "YouTube에서 동영상 로딩 중...",
+    "loadingFromYouTubeSubtext": "동영상이 많은 채널의 경우 시간이 걸릴 수 있습니다",
+    "importingData": "동영상 데이터 가져오는 중..."
+  },
+  "find": {
+    "placeholder": "동영상에서 검색...",
+    "previousButton": "이전 (Shift+F3)",
+    "nextButton": "다음 (F3)",
+    "closeButton": "닫기 (Esc)"
+  },
+  "form": {
+    "title": "제목",
+    "description": "설명",
+    "tags": "태그",
+    "tagsPlaceholder": "쉼표로 구분해서 입력하세요"
+  },
+  "video": {
+    "title": "제목",
+    "description": "설명",
+    "privacy": "공개 설정",
+    "tags": "태그",
+    "saveChanges": "변경사항 저장",
+    "views": "조회수"
+  },
+  "buttons": {
+    "updateVideoInfo": "동영상 업데이트",
+    "updateVideoInfoUpdating": "업데이트 중...",
+    "authenticateWithYouTube": "YouTube 인증",
+    "removeSavedCredentials": "저장된 인증 정보 제거",
+    "deleteCache": "썸네일 캐시 삭제",
+    "loadFromYouTube": "동영상 새로고침",
+    "logout": "로그아웃",
+    "saveAll": "모두 저장",
+    "saveAllWithCount": "모두 저장 ({count}개)"
+  },
+  "navigation": {
+    "sortBy": "정렬 기준",
+    "advanced": "기능"
+  },
+  "sorting": {
+    "dateNewestFirst": "날짜 (최신순)",
+    "dateOldestFirst": "날짜 (오래된순)",
+    "titleAZ": "제목 (가나다순)",
+    "titleZA": "제목 (역순)"
+  },
+  "fileOperations": {
+    "loadFromJSON": "JSON에서 로드",
+    "saveAsJSON": "JSON으로 저장"
+  },
+  "privacy": {
+    "public": "공개",
+    "private": "비공개",
+    "unlisted": "일부 공개"
+  },
+  "status": {
+    "authenticationSuccessful": "인증 성공!",
+    "authenticationFailed": "인증 실패",
+    "loggedOut": "로그아웃되었습니다",
+    "credentialsLoaded": "인증 정보를 불러왔습니다",
+    "videoUpdated": "동영상이 업데이트되었습니다",
+    "videosExported": "{count}개 동영상을 내보냈습니다",
+    "videosImported": "{count}개 동영상을 가져왔습니다",
+    "videosLoaded": "{count}개 동영상을 불러왔습니다",
+    "videosSaved": "{count}개 동영상을 성공적으로 업데이트했습니다",
+    "cacheCleared": "캐시를 삭제했습니다",
+    "noChangesToSave": "저장할 변경사항이 없습니다",
+    "noVideosToExport": "내보낼 동영상이 없습니다",
+    "invalidFileFormat": "잘못된 파일 형식입니다",
+    "invalidVideoData": "잘못된 동영상 데이터 형식입니다",
+    "failedToParseData": "동영상 데이터 파싱 실패",
+    "failedToSelectFile": "파일 선택 실패",
+    "failedToExportVideos": "동영상 내보내기 실패",
+    "failedToUpdateVideo": "동영상 업데이트 실패",
+    "failedToSaveChanges": "변경사항 저장 실패",
+    "failedToLoadVideos": "동영상 불러오기 실패",
+    "failedToLogout": "로그아웃 실패",
+    "failedToClearCache": "캐시 삭제 실패",
+    "credentialsNotLoaded": "인증 정보가 로드되지 않았습니다. client.json 파일을 확인해주세요.",
+    "cached": "(캐시에서 불러옴)",
+    "findMatch": "{total}개 중 {current}번째",
+    "noMatchesFound": "\"{query}\"에 대한 검색 결과가 없습니다",
+    "saveInProgress": "저장 중입니다",
+    "batchSaveComplete": "일괄 저장 완료: 전체 {total}개 중 {successful}개 성공, {failed}개 실패",
+    "batchSaveFailed": "일괄 저장 실패: {failed}개 동영상 저장 실패",
+    "savingBatch": "동영상 저장 중 ({current}/{total})",
+    "processingVideo": "{videoNumber}번째 동영상 처리 중",
+    "credentialsRemoved": "인증 정보가 삭제되었습니다",
+    "failedToRemoveCredentials": "인증 정보 삭제 실패",
+    "failedToLoadCredentials": "인증 정보 불러오기 실패",
+    "failedToParseCredentialsFile": "인증 정보 파일 파싱 실패"
+  },
+  "credentials": {
+    "notFound": "인증 정보를 찾을 수 없습니다",
+    "notFoundDescription": "src/ 디렉토리에 credentials.json 파일이 있는지 확인해주세요."
+  }
+}
