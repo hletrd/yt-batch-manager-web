@@ -315,6 +315,51 @@ export class YouTubeAPI {
     return result;
   }
 
+  private isTokenValid(): boolean {
+    if (!this.accessToken) {
+      return false;
+    }
+
+    const expiry = localStorage.getItem('youtube_token_expiry');
+    if (!expiry) {
+      return false;
+    }
+
+    const currentTime = new Date().getTime();
+    const expiryTime = parseInt(expiry);
+
+    return currentTime < expiryTime;
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (!this.isTokenValid()) {
+      console.warn('Token is expired or invalid, clearing stored token and triggering re-authentication');
+      this.clearStoredToken();
+
+      const authResult = await this.authenticate();
+      if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {
+        throw new Error('Re-authentication failed: ' + authResult.error);
+      }
+
+      throw new Error('Token was invalid and re-authentication has been triggered. Please try again.');
+    }
+  }
+
+  private async handleApiResponse(response: Response): Promise<Response> {
+    if (response.status === 401) {
+      console.warn('401 Unauthorized - token may be invalid, clearing stored token and triggering re-authentication');
+      this.clearStoredToken();
+
+      const authResult = await this.authenticate();
+      if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {
+        throw new Error('Re-authentication failed: ' + authResult.error);
+      }
+
+      throw new Error('Token was invalid and re-authentication has been triggered. Please try again.');
+    }
+    return response;
+  }
+
   async getChannelInfo(): Promise<any> {
     console.log('getChannelInfo auth check:', {
       isAuthenticated: this.isAuthenticated,
@@ -326,6 +371,8 @@ export class YouTubeAPI {
       throw new Error('Not authenticated');
     }
 
+    await this.ensureValidToken();
+
     const response = await fetch(
       'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
       {
@@ -335,6 +382,8 @@ export class YouTubeAPI {
         }
       }
     );
+
+    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch channel info: ${response.statusText}`);
@@ -354,6 +403,8 @@ export class YouTubeAPI {
       throw new Error('Not authenticated');
     }
 
+    await this.ensureValidToken();
+
     const response = await fetch(
       'https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US',
       {
@@ -363,6 +414,8 @@ export class YouTubeAPI {
         }
       }
     );
+
+    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch video categories: ${response.statusText}`);
@@ -376,6 +429,8 @@ export class YouTubeAPI {
       throw new Error('Not authenticated');
     }
 
+    await this.ensureValidToken();
+
     const response = await fetch(
       'https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet',
       {
@@ -385,6 +440,8 @@ export class YouTubeAPI {
         }
       }
     );
+
+    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch i18n languages: ${response.statusText}`);
@@ -403,6 +460,8 @@ export class YouTubeAPI {
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
+
+    await this.ensureValidToken();
 
     const videos: VideoData[] = [];
     let nextPageToken: string | undefined;
@@ -430,6 +489,8 @@ export class YouTubeAPI {
         }
       );
 
+      await this.handleApiResponse(searchResponse);
+
       if (!searchResponse.ok) {
         throw new Error(`Failed to fetch videos: ${searchResponse.status} ${searchResponse.statusText}`);
       }
@@ -453,6 +514,8 @@ export class YouTubeAPI {
           }
         }
       );
+
+      await this.handleApiResponse(videosResponse);
 
       if (!videosResponse.ok) {
         throw new Error(`Failed to fetch video details: ${videosResponse.status} ${videosResponse.statusText}`);
@@ -512,6 +575,8 @@ export class YouTubeAPI {
     }
 
     try {
+      await this.ensureValidToken();
+
       const requestBody = {
         id: videoId,
         snippet: {},
@@ -548,6 +613,8 @@ export class YouTubeAPI {
           body: JSON.stringify(requestBody)
         }
       );
+
+      await this.handleApiResponse(response);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -594,19 +661,20 @@ export class YouTubeAPI {
   }
 
   isLoggedIn(): boolean {
-    return this.isAuthenticated && !!this.accessToken;
+    return this.isAuthenticated && !!this.accessToken && this.isTokenValid();
   }
 
   hasCredentials(): boolean {
     return !!this.config.clientId;
   }
 
-  getAuthStatus(): { isLoggedIn: boolean; hasCredentials: boolean; hasToken: boolean; tokenLength?: number } {
+  getAuthStatus(): { isLoggedIn: boolean; hasCredentials: boolean; hasToken: boolean; tokenLength?: number; isTokenValid: boolean } {
     return {
       isLoggedIn: this.isLoggedIn(),
       hasCredentials: this.hasCredentials(),
       hasToken: !!this.accessToken,
-      tokenLength: this.accessToken?.length
+      tokenLength: this.accessToken?.length,
+      isTokenValid: this.isTokenValid()
     };
   }
 
@@ -644,6 +712,8 @@ export class YouTubeAPI {
         },
         body: tokenRequestBody
       });
+
+      await this.handleApiResponse(tokenResponse);
 
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json().catch(() => ({}));
