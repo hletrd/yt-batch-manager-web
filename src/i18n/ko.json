@@ -79,7 +79,8 @@
   },
   "navigation": {
     "sortBy": "정렬 기준",
-    "advanced": "기능"
+    "advanced": "기능",
+    "privacyPolicy": "개인정보 처리방침"
   },
   "sorting": {
     "dateNewestFirst": "날짜 (최신순)",

@@ -79,7 +79,8 @@
   },
   "navigation": {
     "sortBy": "Sort by",
-    "advanced": "Functions"
+    "advanced": "Functions",
+    "privacyPolicy": "Privacy Policy"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",
