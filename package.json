@@ -1,6 +1,6 @@
 {
   "name": "yt-batch-manager-web",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "YouTube Batch Manager to manage the videos in your channel in a single page.",
   "homepage": "https://github.com/hletrd/yt-batch-manager-web",
   "repository": {
@@ -28,11 +28,11 @@
   "author": "Jiyong Youn",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@types/node": "^24.0.4",
+    "@types/node": "^24.0.7",
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.35.0",
     "concurrently": "^9.2.0",
-    "eslint": "^9.29.0",
+    "eslint": "^9.30.0",
     "globals": "^16.2.0",
     "html-minifier-terser": "^7.2.0",
     "http-server": "^14.1.1",
