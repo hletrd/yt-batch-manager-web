@@ -349,7 +349,6 @@ class YouTubeBatchManager {
 
     for (let i = 0; i < videosToAdd.length; i++) {
       const video = videosToAdd[i];
-      const thumbnailUrl = video.thumbnail_url || this.defaultThumbnail;
 
       const videoHTML = `
         <div class="video-item" data-video-id="${video.id}">
