@@ -351,7 +351,7 @@ class YouTubeBatchManager {
       const video = videosToAdd[i];
 
       const videoHTML = `
-        <div class="video-item" data-video-id="${video.id}">
+        <div class="video-item" id="video-${video.id}" data-video-id="${video.id}">
           <div class="video-header">
             <div class="video-thumbnail">
               ${this.generateResponsiveImageHtml(video)}
@@ -1754,6 +1754,7 @@ class YouTubeBatchManager {
     if (!video) return;
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
+
     if (updateBtn) {
       updateBtn.textContent = rendererI18n.t('buttons.updateVideoInfoUpdating');
       updateBtn.disabled = true;
@@ -1763,12 +1764,15 @@ class YouTubeBatchManager {
       const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
       const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
       const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
+      const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
+      const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
 
       const updates = {
         title: titleEl?.value || video.title,
         description: descriptionEl?.value || video.description,
         privacy_status: privacyEl?.value || video.privacy_status,
-        category_id: video.category_id,
+        category_id: categoryEl?.value || video.category_id,
+        defaultAudioLanguage: languageEl?.value || video.defaultAudioLanguage,
         tags: video.tags || []
       };
 
@@ -1785,6 +1789,11 @@ class YouTubeBatchManager {
         }
 
         this.unmarkChanged(videoId);
+
+        if (updateBtn) {
+          updateBtn.style.display = 'none';
+        }
+
         this.showStatus(rendererI18n.t('status.videoUpdated'), 'success');
 
         if (!this.skipCacheUpdates) {
@@ -1792,15 +1801,16 @@ class YouTubeBatchManager {
         }
       } else {
         this.showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
+        this.checkForChanges(videoId);
       }
     } catch (error) {
       this.showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      this.checkForChanges(videoId);
     } finally {
       if (updateBtn) {
         updateBtn.textContent = rendererI18n.t('buttons.updateVideoInfo');
         updateBtn.disabled = false;
       }
-      this.checkForChanges(videoId);
     }
   }
 
