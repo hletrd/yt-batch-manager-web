@@ -42,6 +42,7 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
     }
 
     body {
@@ -49,7 +50,6 @@
       background-color: var(--bg-secondary);
       color: var(--text-primary);
       line-height: 1.6;
-      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     .header {
@@ -221,7 +221,6 @@
     .dropdown-content a[disabled] {
       pointer-events: none;
       opacity: 0.5;
-      cursor: not-allowed;
     }
 
     .dropdown-divider {
@@ -301,7 +300,6 @@
 
     .btn:disabled {
       opacity: 0.6;
-      cursor: not-allowed;
       transform: none;
     }
 
@@ -1134,7 +1132,7 @@
               <a href="#" onclick="app.sortVideos('title-desc'); app.closeDropdowns();" data-i18n="sorting.titleZA">Title (Z-A)</a>
             </div>
           </div>
-          <button type="button" class="btn btn-primary" onclick="app.refreshVideos()">
+          <button type="button" class="btn btn-primary" id="refresh-videos-btn" onclick="app.refreshVideos()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>
@@ -1171,7 +1169,7 @@
                 <span data-i18n="fileOperations.saveAsJSON">Save as JSON</span>
               </a>
               <div class="dropdown-divider"></div>
-              <a href="#" onclick="app.logout(); app.closeDropdowns();">
+              <a href="#" id="logout-btn" onclick="app.logout(); app.closeDropdowns();">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dropdown-icon">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                   <polyline points="16,17 21,12 16,7"/>

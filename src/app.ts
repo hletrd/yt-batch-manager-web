@@ -77,6 +77,10 @@ class YouTubeBatchManager {
     this.setupEventListeners();
     this.setupInputEditListeners();
     this.initializeApp();
+
+    setTimeout(() => {
+      this.updateAuthDependentButtons();
+    }, 100);
   }
 
   private formatDuration(isoDuration?: string): string {
@@ -191,6 +195,40 @@ class YouTubeBatchManager {
       videoEl.classList.remove('changed');
     }
     this.updateSaveAllButton();
+  }
+
+  private updateAuthDependentButtons(): void {
+    const refreshBtn = document.getElementById('refresh-videos-btn') as HTMLButtonElement;
+    const logoutBtn = document.getElementById('logout-btn') as HTMLAnchorElement;
+
+    const isAuthenticated = this.youtubeAPI.isLoggedIn();
+
+    if (refreshBtn) {
+      refreshBtn.disabled = !isAuthenticated;
+      if (!isAuthenticated) {
+        refreshBtn.style.opacity = '0.5';
+        refreshBtn.style.cursor = 'default';
+        refreshBtn.title = 'Authentication required';
+      } else {
+        refreshBtn.style.opacity = '1';
+        refreshBtn.style.cursor = 'pointer';
+        refreshBtn.title = '';
+      }
+    }
+
+    if (logoutBtn) {
+      if (!isAuthenticated) {
+        logoutBtn.style.opacity = '0.5';
+        logoutBtn.style.cursor = 'default';
+        logoutBtn.style.pointerEvents = 'none';
+        logoutBtn.title = 'Authentication required';
+      } else {
+        logoutBtn.style.opacity = '1';
+        logoutBtn.style.cursor = 'pointer';
+        logoutBtn.style.pointerEvents = 'auto';
+        logoutBtn.title = '';
+      }
+    }
   }
 
   private updateSaveAllButton(): void {
@@ -524,14 +562,17 @@ class YouTubeBatchManager {
       const result = await this.youtubeAPI.authenticate();
       if (result.success) {
         this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
+        this.updateAuthDependentButtons();
         await this.loadVideoMetadata();
         await this.loadVideos();
       } else if (result.error && !result.error.includes('Redirecting')) {
         this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
+        this.updateAuthDependentButtons();
         this.showAuthenticationPrompt();
       }
     } catch (error) {
       this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      this.updateAuthDependentButtons();
       this.showAuthenticationPrompt();
     } finally {
       this.hideLoadingOverlay();
@@ -605,6 +646,7 @@ class YouTubeBatchManager {
 
   async loadVideos(forceRefresh: boolean = false): Promise<void> {
     if (!this.youtubeAPI.isLoggedIn()) {
+      this.updateAuthDependentButtons();
       if (this.youtubeAPI.hasCredentials()) {
         this.showAuthenticationPrompt();
       } else {
@@ -649,6 +691,7 @@ class YouTubeBatchManager {
       this.showStatus(rendererI18n.t('status.videosLoaded', { count: videos.length }) + cacheStatus, 'success');
     } catch (error) {
       console.error('Error loading videos:', error);
+      this.updateAuthDependentButtons();
       this.showStatus(rendererI18n.t('status.failedToLoadVideos') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
     } finally {
       this.state.isLoading = false;
@@ -846,17 +889,20 @@ class YouTubeBatchManager {
         const result = await this.youtubeAPI.authenticate();
         if (result.success) {
           this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
+          this.updateAuthDependentButtons();
           await this.loadVideoMetadata();
           await this.loadVideos();
 
           window.history.replaceState({}, document.title, window.location.pathname);
         } else {
           this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
+          this.updateAuthDependentButtons();
           window.history.replaceState({}, document.title, window.location.pathname);
           this.showAuthenticationPrompt();
         }
       } catch (error) {
         this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+        this.updateAuthDependentButtons();
         window.history.replaceState({}, document.title, window.location.pathname);
         this.showAuthenticationPrompt();
       } finally {
@@ -866,11 +912,14 @@ class YouTubeBatchManager {
       console.log('User is already logged in, loading data...');
       console.log('Auth status:', this.youtubeAPI.getAuthStatus());
       this.showStatus(rendererI18n.t('status.credentialsLoaded'), 'success');
+      this.updateAuthDependentButtons();
       await this.loadVideoMetadata();
       await this.loadVideos();
     } else if (this.youtubeAPI.hasCredentials()) {
+      this.updateAuthDependentButtons();
       this.showAuthenticationPrompt();
     } else {
+      this.updateAuthDependentButtons();
       const videoList = document.getElementById('video-list');
       if (videoList) {
         videoList.innerHTML = `
@@ -1313,6 +1362,7 @@ class YouTubeBatchManager {
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
       this.clearVideoCache();
+      this.updateAuthDependentButtons();
 
       const channelName = document.getElementById('channel-name');
       if (channelName) {
@@ -1345,6 +1395,7 @@ class YouTubeBatchManager {
       this.showStatus(rendererI18n.t('status.loggedOut'), 'success');
     } catch {
       this.showStatus(rendererI18n.t('status.failedToLogout'), 'error');
+      this.updateAuthDependentButtons();
     }
   }
 
@@ -1755,7 +1806,12 @@ class YouTubeBatchManager {
   }
 
   async refreshVideos(): Promise<void> {
+    if (!this.youtubeAPI.isLoggedIn()) {
+      this.showStatus('Authentication required to refresh videos', 'error');
+      return;
+    }
     console.log('Force refreshing videos from YouTube API...');
+    this.updateAuthDependentButtons();
     await this.loadVideos(true);
   }
 }
