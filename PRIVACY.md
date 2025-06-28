@@ -12,7 +12,7 @@ YT Batch Manager ("**we**," "**our,**" or "**the Application**") respects yo
 
 ## 2. Information We Handle
 
-### 2.1 Data We **Do Not** Collect or Store
+### 2.1. Data We **Do Not** Collect or Store
 
 We **do not**:
 
@@ -21,7 +21,7 @@ We **do not**:
 * Track usage or behaviour analytics.
 * Sell, rent, or share user information with third parties, except as necessary to communicate with Google’s YouTube Data API (see § 3).
 
-### 2.2 Data Stored **Locally** on Your Device
+### 2.2. Data Stored **Locally** on Your Device
 
 All operational data is kept exclusively in your browser’s local storage or IndexedDB and never leaves your device unless transmitted directly to Google. Local data includes:
 
@@ -36,7 +36,7 @@ You can delete this data at any time (§ 5.1).
 
 ## 3. Third‑Party Services
 
-### 3.1 Google YouTube Data API v3
+### 3.1. Google YouTube Data API v3
 
 The Application relies on Google’s YouTube Data API v3 for its core functionality.
 
@@ -54,12 +54,12 @@ Your use of Google services is governed by:
 
 ## 4. Data Security
 
-### 4.1 Local Storage Security
+### 4.1. Local Storage Security
 
 * Data is stored using industry‑standard browser mechanisms (LocalStorage / IndexedDB).
 * We recommend enabling device‑level security (OS password, disk encryption) to protect local data.
 
-### 4.2 API Communication
+### 4.2. API Communication
 
 * All traffic to Google’s servers is encrypted via HTTPS/TLS.
 * OAuth 2.0 tokens are stored with the `httponly` and `secure` flags where technically feasible.
@@ -69,12 +69,12 @@ Your use of Google services is governed by:
 
 ## 5. Your Rights and Controls
 
-### 5.1 Manage Local Data
+### 5.1. Manage Local Data
 
 * **Clear Storage:** Use your browser settings or the in‑app “Reset/Log Out” button to delete all locally stored data.
 * **Export:** The Application provides a JSON export feature so you can back up or move your data.
 
-### 5.2 Revoke Google Access
+### 5.2. Revoke Google Access
 
 You can revoke the Application’s access via your [Google Account → Security → Third‑party Apps](https://myaccount.google.com/permissions). Revocation immediately invalidates all stored tokens.
 
