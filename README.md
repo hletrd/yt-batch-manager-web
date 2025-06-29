@@ -4,7 +4,9 @@
 
 ![Edit](./docs/edit.png)
 
-## [Demo](https://hletrd.github.io/yt-batch-manager-web/)
+## [Go to the website](https://yt.atik.kr/)
+
+* [Privacy Policy](./PRIVACY.md)
 
 ## About
 

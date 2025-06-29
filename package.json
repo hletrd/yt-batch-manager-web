@@ -10,8 +10,9 @@
   "main": "dist/index.js",
   "scripts": {
     "clean": "rimraf dist",
-    "build": "tsc -p tsconfig.json && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
-    "build:watch": "tsc -p tsconfig.json --watch && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
+    "build:docs": "node build-docs.js",
+    "build": "tsc -p tsconfig.json && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp -r docs dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true) && npm run build:docs",
+    "build:watch": "tsc -p tsconfig.json --watch && cp src/index.html dist/ && cp -r src/i18n/*.json dist/ && cp -r docs dist/ && cp assets/icon.svg dist/ && (cp src/credentials.json dist/ 2>/dev/null || true)",
     "serve": "http-server dist -p 3000 -c-1 --cors",
     "dev": "npm run build && concurrently \"npm run build:watch\" \"npm run serve\"",
     "start": "http-server dist -p 3000 -c-1 --cors",
@@ -28,6 +29,7 @@
   "author": "Jiyong Youn",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
+    "@types/marked": "^6.0.0",
     "@types/node": "^24.0.7",
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.35.0",
@@ -36,6 +38,7 @@
     "globals": "^16.2.0",
     "html-minifier-terser": "^7.2.0",
     "http-server": "^14.1.1",
+    "marked": "^16.0.0",
     "rimraf": "^6.0.1",
     "terser": "^5.43.1",
     "ts-node": "^10.9.2",
