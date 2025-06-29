@@ -51,6 +51,7 @@ export class YouTubeAPI {
   private accessToken: string | null = null;
   private isAuthenticated: boolean = false;
   private credentials: OAuthCredentials | null = null;
+  private beforeRedirectCallback: (() => void) | null = null;
 
   constructor(config?: YouTubeAPIConfig) {
     this.config = config || {};
@@ -331,10 +332,18 @@ export class YouTubeAPI {
     return currentTime < expiryTime;
   }
 
+  setBeforeRedirectCallback(callback: () => void): void {
+    this.beforeRedirectCallback = callback;
+  }
+
   private async ensureValidToken(): Promise<void> {
     if (!this.isTokenValid()) {
       console.warn('Token is expired or invalid, clearing stored token and triggering re-authentication');
       this.clearStoredToken();
+
+      if (this.beforeRedirectCallback) {
+        this.beforeRedirectCallback();
+      }
 
       const authResult = await this.authenticate();
       if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {
@@ -349,6 +358,10 @@ export class YouTubeAPI {
     if (response.status === 401) {
       console.warn('401 Unauthorized - token may be invalid, clearing stored token and triggering re-authentication');
       this.clearStoredToken();
+
+      if (this.beforeRedirectCallback) {
+        this.beforeRedirectCallback();
+      }
 
       const authResult = await this.authenticate();
       if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {

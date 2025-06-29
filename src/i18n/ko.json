@@ -132,7 +132,9 @@
     "credentialsRemoved": "인증 정보가 삭제되었습니다",
     "failedToRemoveCredentials": "인증 정보 삭제 실패",
     "failedToLoadCredentials": "인증 정보 불러오기 실패",
-    "failedToParseCredentialsFile": "인증 정보 파일 파싱 실패"
+    "failedToParseCredentialsFile": "인증 정보 파일 파싱 실패",
+    "temporaryChangesSaved": "저장되지 않은 변경사항을 임시로 저장합니다",
+    "temporaryChangesRestored": "{count}개 동영상의 저장되지 않은 변경사항을 가져왔습니다"
   },
   "credentials": {
     "notFound": "인증 정보를 찾을 수 없습니다",

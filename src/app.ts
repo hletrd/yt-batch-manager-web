@@ -50,6 +50,19 @@ interface VideoCacheData {
   channelId?: string;
 }
 
+interface TemporaryFormData {
+  title: string;
+  description: string;
+  privacy_status: string;
+  category_id: string;
+  defaultAudioLanguage?: string;
+  tags: string[];
+}
+
+interface TemporaryChangesData {
+  changed: Record<string, TemporaryFormData>;
+}
+
 class YouTubeBatchManager {
   private state: AppState = {
     changedVideos: new Set(),
@@ -70,12 +83,19 @@ class YouTubeBatchManager {
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
   private readonly CACHE_EXPIRY_HOURS = 1;
   private readonly VIDEO_CACHE_KEY = 'yt_video_cache';
+  private readonly TEMP_CHANGES_KEY = 'yt_temp_form_changes';
+  private isOAuthRedirecting = false;
 
   constructor() {
     this.youtubeAPI = new YouTubeAPI();
+    this.youtubeAPI.setBeforeRedirectCallback(() => {
+      this.isOAuthRedirecting = true;
+      this.saveTemporaryChanges();
+    });
     this.initializeTheme();
     this.setupEventListeners();
     this.setupInputEditListeners();
+    this.setupBeforeUnloadHandler();
     this.initializeApp();
 
     setTimeout(() => {
@@ -558,18 +578,25 @@ class YouTubeBatchManager {
     this.showLoadingOverlay(rendererI18n.t('loading.authenticating'), rendererI18n.t('loading.authenticatingSubtext'));
 
     try {
+      this.isOAuthRedirecting = true;
+      this.saveTemporaryChanges();
+
       const result = await this.youtubeAPI.authenticate();
       if (result.success) {
+        this.isOAuthRedirecting = false;
         this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
         this.updateAuthDependentButtons();
         await this.loadVideoMetadata();
         await this.loadVideos();
+        this.restoreTemporaryChanges();
       } else if (result.error && !result.error.includes('Redirecting')) {
+        this.isOAuthRedirecting = false;
         this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
         this.updateAuthDependentButtons();
         this.showAuthenticationPrompt();
       }
     } catch (error) {
+      this.isOAuthRedirecting = false;
       this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
       this.updateAuthDependentButtons();
       this.showAuthenticationPrompt();
@@ -778,16 +805,6 @@ class YouTubeBatchManager {
   private setupEventListeners(): void {
     window.addEventListener('scroll', () => this.handleScroll());
 
-    window.addEventListener('beforeunload', (event) => {
-      if (this.state.changedVideos.size > 0) {
-        const message = `You have ${this.state.changedVideos.size} unsaved changes. Are you sure you want to leave?`;
-        event.preventDefault();
-        event.returnValue = message;
-        return message;
-      }
-      return undefined;
-    });
-
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
 
@@ -887,19 +904,23 @@ class YouTubeBatchManager {
       try {
         const result = await this.youtubeAPI.authenticate();
         if (result.success) {
+          this.isOAuthRedirecting = false;
           this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
           this.updateAuthDependentButtons();
           await this.loadVideoMetadata();
           await this.loadVideos();
+          this.restoreTemporaryChanges();
 
           window.history.replaceState({}, document.title, window.location.pathname);
         } else {
+          this.isOAuthRedirecting = false;
           this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
           this.updateAuthDependentButtons();
           window.history.replaceState({}, document.title, window.location.pathname);
           this.showAuthenticationPrompt();
         }
       } catch (error) {
+        this.isOAuthRedirecting = false;
         this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
         this.updateAuthDependentButtons();
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -1361,6 +1382,7 @@ class YouTubeBatchManager {
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
       this.clearVideoCache();
+      this.clearTemporaryChanges();
       this.updateAuthDependentButtons();
 
       const channelName = document.getElementById('channel-name');
@@ -1432,6 +1454,7 @@ class YouTubeBatchManager {
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
       this.clearVideoCache();
+      this.clearTemporaryChanges();
 
       const channelName = document.getElementById('channel-name');
       if (channelName) {
@@ -1822,6 +1845,127 @@ class YouTubeBatchManager {
     console.log('Force refreshing videos from YouTube API...');
     this.updateAuthDependentButtons();
     await this.loadVideos(true);
+  }
+
+  private setupBeforeUnloadHandler(): void {
+    window.addEventListener('beforeunload', (event) => {
+      if (this.isOAuthRedirecting) {
+        return undefined;
+      }
+
+      if (this.state.changedVideos.size > 0) {
+        event.preventDefault();
+        return (event.returnValue = 'You have unsaved changes. Are you sure you want to leave?');
+      }
+
+      return undefined;
+    });
+  }
+
+  private saveTemporaryChanges(): void {
+    try {
+      if (this.state.changedVideos.size === 0) {
+        return;
+      }
+
+      const tempData: TemporaryChangesData = { changed: {} };
+
+      this.state.changedVideos.forEach(videoId => {
+        const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
+        const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
+        const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
+        const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
+        const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
+        const currentTags = this.getCurrentTags(videoId);
+
+        if (titleEl || descriptionEl || privacyEl || categoryEl || languageEl || currentTags.length > 0) {
+          tempData.changed[videoId] = {
+            title: titleEl?.value || '',
+            description: descriptionEl?.value || '',
+            privacy_status: privacyEl?.value || '',
+            category_id: categoryEl?.value || '',
+            defaultAudioLanguage: languageEl?.value || undefined,
+            tags: currentTags
+          };
+        }
+      });
+
+      localStorage.setItem(this.TEMP_CHANGES_KEY, JSON.stringify(tempData));
+      console.log('Temporary changes saved for', Object.keys(tempData.changed).length, 'videos');
+    } catch (error) {
+      console.error('Failed to save temporary changes:', error);
+    }
+  }
+
+  private restoreTemporaryChanges(): void {
+    try {
+      const tempDataStr = localStorage.getItem(this.TEMP_CHANGES_KEY);
+      if (!tempDataStr) {
+        return;
+      }
+
+      const tempData: TemporaryChangesData = JSON.parse(tempDataStr);
+      let restoredCount = 0;
+
+      Object.entries(tempData.changed).forEach(([videoId, formData]) => {
+        const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
+        const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
+        const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
+        const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
+        const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
+
+        if (titleEl && formData.title !== titleEl.value) {
+          titleEl.value = formData.title;
+          this.handleTitleChange(videoId);
+        }
+
+        if (descriptionEl && formData.description !== descriptionEl.value) {
+          descriptionEl.value = formData.description;
+          this.handleDescriptionChange(videoId);
+          this.autoResizeTextarea(descriptionEl);
+        }
+
+        if (privacyEl && formData.privacy_status !== privacyEl.value) {
+          privacyEl.value = formData.privacy_status;
+          this.handlePrivacyChange(videoId);
+        }
+
+        if (categoryEl && formData.category_id !== categoryEl.value) {
+          categoryEl.value = formData.category_id;
+          this.handleCategoryChange(videoId);
+        }
+
+        if (languageEl && formData.defaultAudioLanguage !== languageEl.value) {
+          languageEl.value = formData.defaultAudioLanguage || '';
+          this.handleLanguageChange(videoId);
+        }
+
+        if (formData.tags && formData.tags.length > 0) {
+          const video = this.state.allVideos.find(v => v.id === videoId);
+          if (video) {
+            video.tags = [...formData.tags];
+            this.renderTagsContainer(videoId);
+            this.handleTagChange(videoId);
+          }
+        }
+
+        restoredCount++;
+      });
+
+      localStorage.removeItem(this.TEMP_CHANGES_KEY);
+
+      if (restoredCount > 0) {
+        this.showStatus(rendererI18n.t('status.temporaryChangesRestored', { count: restoredCount }), 'info');
+        console.log('Restored temporary changes for', restoredCount, 'videos');
+      }
+    } catch (error) {
+      console.error('Failed to restore temporary changes:', error);
+      localStorage.removeItem(this.TEMP_CHANGES_KEY);
+    }
+  }
+
+  private clearTemporaryChanges(): void {
+    localStorage.removeItem(this.TEMP_CHANGES_KEY);
   }
 }
 

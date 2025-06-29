@@ -132,7 +132,9 @@
     "credentialsRemoved": "Credentials removed successfully",
     "failedToRemoveCredentials": "Failed to remove credentials",
     "failedToLoadCredentials": "Failed to load credentials",
-    "failedToParseCredentialsFile": "Failed to parse credentials file"
+    "failedToParseCredentialsFile": "Failed to parse credentials file",
+    "temporaryChangesSaved": "Unsaved changes have been temporarily saved",
+    "temporaryChangesRestored": "Restored unsaved changes for {count} video(s)"
   },
   "credentials": {
     "notFound": "No Credentials Found",
