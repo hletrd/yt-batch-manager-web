@@ -796,10 +796,13 @@ class YouTubeBatchManager {
 
   private initializeTheme(): void {
     const savedTheme = localStorage.getItem('theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-    this.updateThemeIcon(theme);
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      this.updateThemeIcon(savedTheme);
+    } else {
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      this.updateThemeIcon(systemPrefersDark ? 'dark' : 'light');
+    }
   }
 
   private setupEventListeners(): void {
