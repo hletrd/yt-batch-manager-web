@@ -1246,7 +1246,7 @@ class YouTubeBatchManager {
       );
 
       try {
-        await this.updateVideo(videoId);
+        await this.updateVideo(videoId, true);
         successCount++;
       } catch (error) {
         errorCount++;
@@ -1775,7 +1775,7 @@ class YouTubeBatchManager {
     }, 10);
   }
 
-  async updateVideo(videoId: string): Promise<void> {
+  async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<void> {
     const video = this.state.allVideos.find(v => v.id === videoId);
     if (!video) return;
 
@@ -1820,17 +1820,23 @@ class YouTubeBatchManager {
           updateBtn.style.display = 'none';
         }
 
-        this.showStatus(rendererI18n.t('status.videoUpdated'), 'success');
+        if (!suppressStatus) {
+          this.showStatus(rendererI18n.t('status.videoUpdated'), 'success');
+        }
 
         if (!this.skipCacheUpdates) {
           this.updateVideoCache();
         }
       } else {
-        this.showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
+        if (!suppressStatus) {
+          this.showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
+        }
         this.checkForChanges(videoId);
       }
     } catch (error) {
-      this.showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      if (!suppressStatus) {
+        this.showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      }
       this.checkForChanges(videoId);
     } finally {
       if (updateBtn) {
