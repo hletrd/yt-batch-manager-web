@@ -37,9 +37,11 @@ jobs:
     - name: Build and copy assets
       run: |
         tsc -p tsconfig.json
+        npm run build:docs
         cp src/index.html dist/
         cp -r src/i18n/*.json dist/
         cp assets/icon.svg dist/
+        cp -r docs dist/
 
     - name: Write credentials.json from secret
       run: |
