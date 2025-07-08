@@ -4,9 +4,9 @@
 
 ![Edit](./docs/edit.png)
 
-## [Go to the website](https://yt.atik.kr/)
+## [Go to the app](https://yt.atik.kr/)
 
-* [Privacy Policy](./PRIVACY.md)
+* [Privacy Policy](https://yt.atik.kr/privacy)
 
 ## About
 
