@@ -1,8 +1,10 @@
 # YT Batch Manager Web
 
-![YT Batch Manager](./docs/screenshot.png)
+![YT Batch Manager](./docs/shot0.png)
 
-![Edit](./docs/edit.png)
+![Edit](./docs/shot1.png)
+
+![Light](./docs/shot2.png)
 
 ## [Go to the app](https://yt.atik.kr/)
 
