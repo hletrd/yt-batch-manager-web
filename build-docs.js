@@ -7,7 +7,7 @@ const htmlTemplate = (title, content, description = '') => `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title} - YT Batch Manager</title>
+    <title>${title} - YTControlPanel</title>
     <meta name="description" content="${description}">
     <meta name="author" content="Jiyong Youn">
     <style>
@@ -238,7 +238,7 @@ const htmlTemplate = (title, content, description = '') => `<!DOCTYPE html>
 </head>
 <body>
     <div class="back-link">
-        <a href="../">← Back to YT Batch Manager</a>
+        <a href="../">← Back to YTControlPanel</a>
     </div>
 
     <div class="container">

@@ -1,6 +1,6 @@
-# YT Batch Manager Web
+# YTControlPanel
 
-![YT Batch Manager](./docs/shot0.png)
+![YTControlPanel](./docs/shot0.png)
 
 ![Edit](./docs/shot1.png)
 
@@ -8,7 +8,7 @@
 
 ## [Go to the app](https://yt.atik.kr/)
 
-* [Privacy Policy](https://yt.atik.kr/privacy)
+* [Privacy Policy](https://yt.atik.kr/privacy.html)
 
 ## About
 

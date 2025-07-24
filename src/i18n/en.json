@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "YT Batch Manager",
+    "title": "YTControlPanel",
     "noVideosLoaded": "No videos loaded",
     "noVideosLoadedDescription": "Click \"Load from YouTube\" to fetch your videos, or \"Load from File\" to load a previous backup.",
     "published": "Published",

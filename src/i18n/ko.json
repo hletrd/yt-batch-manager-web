@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "YT Batch Manager",
+    "title": "YTControlPanelr",
     "noVideosLoaded": "로드된 동영상이 없습니다",
     "noVideosLoadedDescription": "\"YouTube에서 로드\"를 클릭하여 동영상을 가져오거나 \"파일에서 로드\"를 클릭하여 이전 백업을 로드하세요.",
     "published": "게시됨",
