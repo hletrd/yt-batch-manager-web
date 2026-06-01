@@ -153,6 +153,7 @@ export class YouTubeAPI {
     localStorage.removeItem('youtube_token_expiry');
     localStorage.removeItem('youtube_refresh_token');
     localStorage.removeItem('oauth_state');
+    localStorage.removeItem('oauth_code_verifier');
   }
 
   private async loadCredentials(): Promise<void> {
@@ -275,7 +276,7 @@ export class YouTubeAPI {
           return { success: false, error: `State validation failed. Expected: ${storedState}, Got: ${state}` };
         }
 
-        this.initiateOAuthFlow();
+        await this.initiateOAuthFlow();
         return { success: false, error: 'Redirecting to OAuth...' };
       }
     } catch (error) {
@@ -287,46 +288,48 @@ export class YouTubeAPI {
     }
   }
 
-  private initiateOAuthFlow(): void {
-    const authUrl = this.buildAuthUrl();
+  private async initiateOAuthFlow(): Promise<void> {
+    const authUrl = await this.buildAuthUrl();
     window.location.href = authUrl;
   }
 
-  private buildAuthUrl(): string {
+  private async buildAuthUrl(): Promise<string> {
     if (!this.config.clientId || !this.config.redirectUri) {
       throw new Error('OAuth configuration incomplete');
     }
 
     const state = this.generateRandomString(32);
-    console.log('Generated OAuth state:', state);
+
+    // PKCE: bind this authorization request to a one-time code verifier so an
+    // intercepted authorization code cannot be exchanged by anyone else.
+    // Google still requires the client_secret at the token endpoint, but with
+    // PKCE in place the publicly-served secret is not independently exploitable.
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = await this.computeCodeChallenge(codeVerifier);
 
     try {
       localStorage.setItem('oauth_state', state);
-      console.log('Stored OAuth state in localStorage');
-
-      const storedState = localStorage.getItem('oauth_state');
-      console.log('Verified stored state:', storedState);
-      console.log('localStorage contents:', Object.keys(localStorage));
+      localStorage.setItem('oauth_code_verifier', codeVerifier);
     } catch (error) {
-      console.error('Error storing state in localStorage:', error);
+      console.error('Error storing OAuth state/verifier in localStorage:', error);
     }
 
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl',
+      scope: 'https://www.googleapis.com/auth/youtube.force-ssl',
       access_type: 'offline',
       // Force the consent screen so Google always returns a refresh_token.
       // Without this, offline access only yields a refresh_token on the very
       // first authorization, leaving repeat logins without one.
       prompt: 'consent',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
       state: state
     });
 
-    const authUrl = `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
-    console.log('Built auth URL:', authUrl.substring(0, 100) + '...');
-    return authUrl;
+    return `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
   }
 
   private generateRandomString(length: number): string {
@@ -336,6 +339,25 @@ export class YouTubeAPI {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
+  }
+
+  private generateCodeVerifier(): string {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return this.base64UrlEncode(bytes);
+  }
+
+  private async computeCodeChallenge(verifier: string): Promise<string> {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    return this.base64UrlEncode(new Uint8Array(digest));
+  }
+
+  private base64UrlEncode(bytes: Uint8Array): string {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
   private isTokenValid(): boolean {
@@ -842,12 +864,20 @@ export class YouTubeAPI {
         return { success: false, error: 'OAuth configuration incomplete' };
       }
 
+      const codeVerifier = localStorage.getItem('oauth_code_verifier');
+
       const tokenRequestBody = new URLSearchParams({
         code,
         client_id: this.config.clientId,
         redirect_uri: this.config.redirectUri,
         grant_type: 'authorization_code'
       });
+
+      // PKCE proof of possession. Google additionally requires the client_secret
+      // for "Web application" clients, so both are sent.
+      if (codeVerifier) {
+        tokenRequestBody.append('code_verifier', codeVerifier);
+      }
 
       if (this.config.clientSecret) {
         tokenRequestBody.append('client_secret', this.config.clientSecret);
@@ -879,6 +909,7 @@ export class YouTubeAPI {
           tokenData.refresh_token
         );
         localStorage.removeItem('oauth_state');
+        localStorage.removeItem('oauth_code_verifier');
         return { success: true };
       } else {
         return { success: false, error: 'No access token received' };
