@@ -9,6 +9,7 @@
 ## [Go to the app](https://yt.atik.kr/)
 
 * [Privacy Policy](https://yt.atik.kr/privacy.html)
+* [Terms of Service](https://yt.atik.kr/terms.html)
 
 ## About
 
@@ -30,7 +31,9 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
 
 * Edit video titles and descriptions in a single page, which YouTube does not allow.
   * YouTube forces a very user-unfriendly experiences, where you have to go to each video page to edit the title and description, and then save it.
-* Save/load video data to/from local JSON files.
+* Bulk-edit privacy status, category, audio language, and tags as well.
+* Save/load video data to/from local JSON files for offline editing and backup.
+* Stays signed in across reloads — the session is restored automatically, so you don't have to log in again every hour.
 
 ## 기능 (한국어)
 
@@ -38,6 +41,7 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
   * 이거 유튜브 Studio 웹페이지나 YT Studio 앱에서는 안 됩니다. 대체 왜 안 되는지 모르겠습니다.
 * 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다.
 * 영상 공개 설정 / 카테고리 / 언어 / 태그 등도 한 번에 편집할 수 있습니다.
+* 새로고침하거나 다시 접속해도 로그인이 유지되어, 한 시간마다 다시 로그인할 필요가 없습니다.
 
 ---
 
@@ -45,7 +49,7 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
 
 ### Prerequisites
 
-* Node.js 22.0.0+ installed.
+* Node.js 24 LTS installed (the project builds on Node 24).
 * Google Cloud Console project with YouTube Data API v3 enabled.
 * Your own YouTube channel.
 
@@ -71,9 +75,8 @@ $ npm install
 
 ##### Add scopes
 1. Search for the **OAuth consent screen** in the search bar, and click 'Data Access' on the left sidebar.
-2. Click 'Add or remove scopes' and enter following scopes in **Manually add scopes** text box:
+2. Click 'Add or remove scopes' and enter the following scope in **Manually add scopes** text box:
 ```
-https://www.googleapis.com/auth/youtube
 https://www.googleapis.com/auth/youtube.force-ssl
 ```
 3. Click 'Add to table'.
@@ -99,3 +102,6 @@ The application will launch and prompt for Google OAuth authentication on first 
 ### Google OAuth authentication fails
 1. Remove the stored credentials by clicking the "Remove Saved Credentials" button and reload the file.
 2. If the problem persists, try to re-create the `credentials.json` file.
+
+### "403 Forbidden" / quota exceeded when loading videos
+The YouTube Data API has a default quota of 10,000 units/day. The app lists your uploads efficiently (about 9 units per full load), so this is rarely hit. If you do see a `403 quotaExceeded`, the daily quota resets at midnight Pacific Time, or you can request a higher quota in the Google Cloud Console.
