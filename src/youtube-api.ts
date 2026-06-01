@@ -620,36 +620,33 @@ export class YouTubeAPI {
   }
 
   async getVideos(maxResults: number = 200): Promise<VideoData[]> {
-    console.log('getVideos auth check:', {
-      isAuthenticated: this.isAuthenticated,
-      hasAccessToken: !!this.accessToken,
-      tokenLength: this.accessToken?.length
-    });
-
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
 
     await this.ensureValidToken();
 
+    // Page through the channel's "uploads" playlist (1 quota unit per page)
+    // instead of search.list?forMine=true (100 units per page). This also
+    // returns every upload reliably, including very recent ones.
+    const uploadsPlaylistId = await this.getUploadsPlaylistId();
+
     const videos: VideoData[] = [];
     let nextPageToken: string | undefined;
 
     do {
-      const searchParams = new URLSearchParams({
-        part: 'snippet',
-        forMine: 'true',
-        type: 'video',
-        maxResults: Math.min(50, maxResults - videos.length).toString(),
-        order: 'date'
+      const playlistParams = new URLSearchParams({
+        part: 'contentDetails',
+        playlistId: uploadsPlaylistId,
+        maxResults: Math.min(50, maxResults - videos.length).toString()
       });
 
       if (nextPageToken) {
-        searchParams.append('pageToken', nextPageToken);
+        playlistParams.append('pageToken', nextPageToken);
       }
 
-      const searchResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?${searchParams.toString()}`,
+      const playlistResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?${playlistParams.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
@@ -658,16 +655,22 @@ export class YouTubeAPI {
         }
       );
 
-      await this.handleApiResponse(searchResponse);
+      await this.handleApiResponse(playlistResponse);
 
-      if (!searchResponse.ok) {
-        throw new Error(`Failed to fetch videos: ${searchResponse.status} ${searchResponse.statusText}`);
+      if (!playlistResponse.ok) {
+        throw new Error(await this.describeError(playlistResponse, 'Failed to fetch videos'));
       }
 
-      const searchData = await searchResponse.json();
-      const videoIds = searchData.items?.map((item: any) => item.id.videoId).filter(Boolean) || [];
+      const playlistData = await playlistResponse.json();
+      nextPageToken = playlistData.nextPageToken;
 
-      if (videoIds.length === 0) break;
+      const videoIds: string[] = (playlistData.items || [])
+        .map((item: any) => item.contentDetails?.videoId)
+        .filter(Boolean);
+
+      if (videoIds.length === 0) {
+        continue;
+      }
 
       const videosParams = new URLSearchParams({
         part: 'snippet,status,contentDetails,statistics',
@@ -687,7 +690,7 @@ export class YouTubeAPI {
       await this.handleApiResponse(videosResponse);
 
       if (!videosResponse.ok) {
-        throw new Error(`Failed to fetch video details: ${videosResponse.status} ${videosResponse.statusText}`);
+        throw new Error(await this.describeError(videosResponse, 'Failed to fetch video details'));
       }
 
       const videosData = await videosResponse.json();
@@ -731,11 +734,58 @@ export class YouTubeAPI {
         videos.push(video);
       }
 
-      nextPageToken = searchData.nextPageToken;
-
     } while (nextPageToken && videos.length < maxResults);
 
     return videos;
+  }
+
+  private async getUploadsPlaylistId(): Promise<string> {
+    const response = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true',
+      {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    await this.handleApiResponse(response);
+
+    if (!response.ok) {
+      throw new Error(await this.describeError(response, 'Failed to fetch channel'));
+    }
+
+    const data = await response.json();
+    const uploads = data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+
+    if (!uploads) {
+      throw new Error('Could not find the uploads playlist for this channel');
+    }
+
+    return uploads;
+  }
+
+  // Surface the YouTube API error reason (e.g. quotaExceeded,
+  // ACCESS_TOKEN_SCOPE_INSUFFICIENT) instead of a bare status code.
+  private async describeError(response: Response, prefix: string): Promise<string> {
+    let detail = `${response.status}`;
+    try {
+      const data = await response.json();
+      const reason = data?.error?.errors?.[0]?.reason || data?.error?.status;
+      const message = data?.error?.message;
+      if (reason) {
+        detail += ` ${reason}`;
+      }
+      if (message) {
+        detail += `: ${message}`;
+      }
+    } catch {
+      if (response.statusText) {
+        detail += ` ${response.statusText}`;
+      }
+    }
+    return `${prefix}: ${detail}`;
   }
 
   async updateVideo(videoId: string, updates: Partial<VideoData>): Promise<{ success: boolean; error?: string }> {
