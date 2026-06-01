@@ -371,7 +371,7 @@ class YouTubeBatchManager {
       const video = videosToAdd[i];
 
       const videoHTML = `
-        <div class="video-item" id="video-${video.id}" data-video-id="${video.id}">
+        <div class="video-item${this.state.changedVideos.has(video.id) ? ' changed' : ''}" id="video-${video.id}" data-video-id="${video.id}">
           <div class="video-header">
             <div class="video-thumbnail">
               ${this.generateResponsiveImageHtml(video)}
@@ -497,7 +497,7 @@ class YouTubeBatchManager {
           </div>
 
           <div class="video-actions">
-            <button class="btn btn-success" onclick="app.updateVideo('${video.id}')" id="update-btn-${video.id}" style="display: none;" data-i18n="buttons.updateVideoInfo">
+            <button class="btn btn-success" onclick="app.updateVideo('${video.id}')" id="update-btn-${video.id}" style="display: ${this.state.changedVideos.has(video.id) ? 'inline-flex' : 'none'};" data-i18n="buttons.updateVideoInfo">
               Update Video
             </button>
           </div>
@@ -1360,14 +1360,32 @@ class YouTubeBatchManager {
             return;
           }
 
+          // Preserve any existing YouTube baseline so we can detect which
+          // imported videos actually differ from what is live on YouTube.
+          // Videos without a baseline (a plain file-only load) are treated as
+          // pending saves so the whole import can be pushed to YouTube.
+          const baselineState = new Map(this.originalVideosState);
+
           this.state.allVideos = videoData;
           this.state.displayedVideos = [...videoData];
+          this.state.changedVideos.clear();
           this.originalVideosState.clear();
+
           videoData.forEach((video: VideoData) => {
-            this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
+            const baseline = baselineState.get(video.id);
+            if (baseline) {
+              this.originalVideosState.set(video.id, baseline);
+              if (this.videoDiffersFromBaseline(video, baseline)) {
+                this.state.changedVideos.add(video.id);
+              }
+            } else {
+              this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
+              this.state.changedVideos.add(video.id);
+            }
           });
 
-          await this.renderVideos();
+          await this.renderVideos(true);
+          this.updateSaveAllButton();
           this.showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
         } catch {
           this.showStatus(rendererI18n.t('status.failedToParseData'), 'error');
@@ -1625,6 +1643,17 @@ class YouTubeBatchManager {
 
   private arraysEqual(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((val, index) => val === b[index]);
+  }
+
+  private videoDiffersFromBaseline(video: VideoData, baseline: VideoData): boolean {
+    return (
+      (video.title || '') !== (baseline.title || '') ||
+      (video.description || '') !== (baseline.description || '') ||
+      (video.privacy_status || '') !== (baseline.privacy_status || '') ||
+      (video.category_id || '') !== (baseline.category_id || '') ||
+      (video.defaultAudioLanguage || '') !== (baseline.defaultAudioLanguage || '') ||
+      !this.arraysEqual(video.tags || [], baseline.tags || [])
+    );
   }
 
   handleTextareaResize(textarea: HTMLTextAreaElement): void {
