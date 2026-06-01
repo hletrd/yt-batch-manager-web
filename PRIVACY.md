@@ -1,4 +1,4 @@
-# Privacy Policy for **YTControlPanel**
+# Privacy Policy for **YT Batch Manager**
 
 **Last Updated:** 2025‑07-24
 

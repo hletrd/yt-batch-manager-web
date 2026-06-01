@@ -1,6 +1,6 @@
-# YTControlPanel
+# YT Batch Manager Web
 
-![YTControlPanel](./docs/shot0.png)
+![YT Batch Manager](./docs/shot0.png)
 
 ![Edit](./docs/shot1.png)
 
