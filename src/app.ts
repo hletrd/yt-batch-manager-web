@@ -1345,48 +1345,7 @@ class YouTubeBatchManager {
         try {
           const text = await file.text();
           const videoData = JSON.parse(text);
-
-          if (!Array.isArray(videoData)) {
-            this.showStatus(rendererI18n.t('status.invalidFileFormat'), 'error');
-            return;
-          }
-
-          const isValid = videoData.every(video =>
-            video.id && video.title && typeof video.title === 'string'
-          );
-
-          if (!isValid) {
-            this.showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
-            return;
-          }
-
-          // Preserve any existing YouTube baseline so we can detect which
-          // imported videos actually differ from what is live on YouTube.
-          // Videos without a baseline (a plain file-only load) are treated as
-          // pending saves so the whole import can be pushed to YouTube.
-          const baselineState = new Map(this.originalVideosState);
-
-          this.state.allVideos = videoData;
-          this.state.displayedVideos = [...videoData];
-          this.state.changedVideos.clear();
-          this.originalVideosState.clear();
-
-          videoData.forEach((video: VideoData) => {
-            const baseline = baselineState.get(video.id);
-            if (baseline) {
-              this.originalVideosState.set(video.id, baseline);
-              if (this.videoDiffersFromBaseline(video, baseline)) {
-                this.state.changedVideos.add(video.id);
-              }
-            } else {
-              this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
-              this.state.changedVideos.add(video.id);
-            }
-          });
-
-          await this.renderVideos(true);
-          this.updateSaveAllButton();
-          this.showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
+          await this.importVideoData(videoData);
         } catch {
           this.showStatus(rendererI18n.t('status.failedToParseData'), 'error');
         } finally {
@@ -1398,6 +1357,50 @@ class YouTubeBatchManager {
     } catch {
       this.showStatus(rendererI18n.t('status.failedToSelectFile'), 'error');
     }
+  }
+
+  async importVideoData(videoData: VideoData[]): Promise<void> {
+    if (!Array.isArray(videoData)) {
+      this.showStatus(rendererI18n.t('status.invalidFileFormat'), 'error');
+      return;
+    }
+
+    const isValid = videoData.every(video =>
+      video && video.id && video.title && typeof video.title === 'string'
+    );
+
+    if (!isValid) {
+      this.showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
+      return;
+    }
+
+    // Preserve any existing YouTube baseline so we can detect which imported
+    // videos actually differ from what is live on YouTube. Videos without a
+    // baseline (a plain file-only load) are treated as pending saves so the
+    // whole import can be pushed to YouTube.
+    const baselineState = new Map(this.originalVideosState);
+
+    this.state.allVideos = videoData;
+    this.state.displayedVideos = [...videoData];
+    this.state.changedVideos.clear();
+    this.originalVideosState.clear();
+
+    videoData.forEach((video: VideoData) => {
+      const baseline = baselineState.get(video.id);
+      if (baseline) {
+        this.originalVideosState.set(video.id, baseline);
+        if (this.videoDiffersFromBaseline(video, baseline)) {
+          this.state.changedVideos.add(video.id);
+        }
+      } else {
+        this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
+        this.state.changedVideos.add(video.id);
+      }
+    });
+
+    await this.renderVideos(true);
+    this.updateSaveAllButton();
+    this.showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
   }
 
   async logout(): Promise<void> {
