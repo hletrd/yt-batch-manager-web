@@ -29,6 +29,11 @@ interface VideoData {
   category_id: string;
   tags?: string[];
   defaultAudioLanguage?: string;
+  contains_synthetic_media?: boolean;
+  made_for_kids?: boolean;
+  license?: string;
+  embeddable?: boolean;
+  public_stats_viewable?: boolean;
   duration?: string;
   upload_status?: string;
   processing_status?: string;
@@ -720,6 +725,11 @@ export class YouTubeAPI {
           category_id: item.snippet.categoryId || '22',
           tags: item.snippet.tags || [],
           defaultAudioLanguage: item.snippet.defaultAudioLanguage,
+          contains_synthetic_media: item.status?.containsSyntheticMedia ?? false,
+          made_for_kids: item.status?.madeForKids,
+          license: item.status?.license,
+          embeddable: item.status?.embeddable,
+          public_stats_viewable: item.status?.publicStatsViewable,
           duration: item.contentDetails?.duration,
           upload_status: item.status?.uploadStatus,
           processing_status: item.status?.processingStatus,
@@ -819,6 +829,25 @@ export class YouTubeAPI {
       }
       if (updates.privacy_status !== undefined) {
         (requestBody.status as any).privacyStatus = updates.privacy_status;
+      }
+      // Always round-trip the remaining mutable status fields. videos.update
+      // deletes any status property omitted from the request, so leaving these
+      // out would silently wipe them (e.g. an existing AI-content disclosure,
+      // the made-for-kids designation, license, or embeddable setting).
+      if (updates.contains_synthetic_media !== undefined) {
+        (requestBody.status as any).containsSyntheticMedia = updates.contains_synthetic_media;
+      }
+      if (updates.license !== undefined) {
+        (requestBody.status as any).license = updates.license;
+      }
+      if (updates.embeddable !== undefined) {
+        (requestBody.status as any).embeddable = updates.embeddable;
+      }
+      if (updates.public_stats_viewable !== undefined) {
+        (requestBody.status as any).publicStatsViewable = updates.public_stats_viewable;
+      }
+      if (updates.made_for_kids !== undefined) {
+        (requestBody.status as any).selfDeclaredMadeForKids = updates.made_for_kids;
       }
 
       const response = await fetch(

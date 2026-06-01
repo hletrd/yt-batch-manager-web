@@ -83,6 +83,9 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service"
   },
+  "video": {
+    "syntheticContent": "Altered or synthetic content"
+  },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",
     "dateOldestFirst": "Date (Oldest First)",

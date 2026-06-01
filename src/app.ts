@@ -12,6 +12,11 @@ interface VideoData {
   category_id: string;
   tags?: string[];
   defaultAudioLanguage?: string;
+  contains_synthetic_media?: boolean;
+  made_for_kids?: boolean;
+  license?: string;
+  embeddable?: boolean;
+  public_stats_viewable?: boolean;
   duration?: string;
   upload_status?: string;
   processing_status?: string;
@@ -269,12 +274,13 @@ class YouTubeBatchManager {
     }
   }
 
-  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string): boolean {
+  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean): boolean {
     const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
     const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
     const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
     const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
     const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
+    const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
 
     const currentTags = this.getCurrentTags(videoId);
     const originalTags = this.getOriginalTags(videoId);
@@ -285,6 +291,7 @@ class YouTubeBatchManager {
       privacyEl?.value !== savedPrivacyStatus ||
       categoryEl?.value !== savedCategoryId ||
       languageEl?.value !== (savedDefaultAudioLanguage || '') ||
+      (syntheticEl ? syntheticEl.checked : false) !== (savedContainsSyntheticMedia || false) ||
       !this.arraysEqual(currentTags, originalTags)
     );
   }
@@ -402,6 +409,12 @@ class YouTubeBatchManager {
                   <select class="language-select" id="language-${video.id}" onchange="app.handleLanguageChange('${video.id}')">
                     ${this.generateLanguageOptions(video.defaultAudioLanguage)}
                   </select>
+                </div>
+                <div class="synthetic-control">
+                  <label class="synthetic-label">
+                    <input type="checkbox" class="synthetic-checkbox" id="synthetic-${video.id}" ${video.contains_synthetic_media ? 'checked' : ''} onchange="app.handleSyntheticMediaChange('${video.id}')">
+                    <span data-i18n="video.syntheticContent">Altered or synthetic content</span>
+                  </label>
                 </div>
                 ${video.statistics ? `
                   <div class="video-stats">
@@ -1609,6 +1622,10 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  handleSyntheticMediaChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
   private checkForChanges(videoId: string): void {
     const video = this.state.allVideos.find(v => v.id === videoId);
     const original = this.originalVideosState.get(videoId);
@@ -1623,7 +1640,8 @@ class YouTubeBatchManager {
       original.description,
       original.privacy_status,
       original.category_id,
-      original.defaultAudioLanguage
+      original.defaultAudioLanguage,
+      original.contains_synthetic_media
     );
 
     if (hasChanges) {
@@ -1655,6 +1673,7 @@ class YouTubeBatchManager {
       (video.privacy_status || '') !== (baseline.privacy_status || '') ||
       (video.category_id || '') !== (baseline.category_id || '') ||
       (video.defaultAudioLanguage || '') !== (baseline.defaultAudioLanguage || '') ||
+      (video.contains_synthetic_media || false) !== (baseline.contains_synthetic_media || false) ||
       !this.arraysEqual(video.tags || [], baseline.tags || [])
     );
   }
@@ -1830,13 +1849,22 @@ class YouTubeBatchManager {
       const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
       const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
 
+      const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
+
       const updates = {
         title: titleEl?.value || video.title,
         description: descriptionEl?.value || video.description,
         privacy_status: privacyEl?.value || video.privacy_status,
         category_id: categoryEl?.value || video.category_id,
         defaultAudioLanguage: languageEl?.value || video.defaultAudioLanguage,
-        tags: video.tags || []
+        tags: video.tags || [],
+        contains_synthetic_media: syntheticEl ? syntheticEl.checked : (video.contains_synthetic_media ?? false),
+        // Re-send the other mutable status fields so videos.update doesn't wipe
+        // them (it deletes any status property omitted from the request).
+        made_for_kids: video.made_for_kids,
+        license: video.license,
+        embeddable: video.embeddable,
+        public_stats_viewable: video.public_stats_viewable
       };
 
       const result = await this.youtubeAPI.updateVideo(videoId, updates);
