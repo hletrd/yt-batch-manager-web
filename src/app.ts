@@ -1375,9 +1375,10 @@ class YouTubeBatchManager {
     }
 
     // Preserve any existing YouTube baseline so we can detect which imported
-    // videos actually differ from what is live on YouTube. Videos without a
-    // baseline (a plain file-only load) are treated as pending saves so the
-    // whole import can be pushed to YouTube.
+    // videos actually differ from what is live on YouTube. A plain file-only
+    // load (no baseline) just becomes the new baseline and is NOT pre-marked as
+    // changed: the save prompt appears only for videos the user edits, or for
+    // videos that genuinely differ from a loaded YouTube baseline.
     const baselineState = new Map(this.originalVideosState);
 
     this.state.allVideos = videoData;
@@ -1394,7 +1395,6 @@ class YouTubeBatchManager {
         }
       } else {
         this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
-        this.state.changedVideos.add(video.id);
       }
     });
 
