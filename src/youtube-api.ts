@@ -49,9 +49,11 @@ interface ThumbnailData {
 export class YouTubeAPI {
   private config: YouTubeAPIConfig = {};
   private accessToken: string | null = null;
+  private refreshToken: string | null = null;
   private isAuthenticated: boolean = false;
   private credentials: OAuthCredentials | null = null;
   private beforeRedirectCallback: (() => void) | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(config?: YouTubeAPIConfig) {
     this.config = config || {};
@@ -86,10 +88,12 @@ export class YouTubeAPI {
     try {
       const token = localStorage.getItem('youtube_access_token');
       const expiry = localStorage.getItem('youtube_token_expiry');
+      this.refreshToken = localStorage.getItem('youtube_refresh_token');
 
       console.log('Loading stored token:', {
         hasToken: !!token,
         hasExpiry: !!expiry,
+        hasRefreshToken: !!this.refreshToken,
         tokenLength: token?.length,
         expiryValue: expiry,
         currentTime: new Date().getTime(),
@@ -101,11 +105,15 @@ export class YouTubeAPI {
         this.isAuthenticated = true;
         console.log('Stored token loaded and is valid');
       } else {
+        // Access token is missing or expired, but keep the refresh token so the
+        // session can be restored silently via tryRestoreSession().
         this.accessToken = null;
         this.isAuthenticated = false;
         localStorage.removeItem('youtube_access_token');
         localStorage.removeItem('youtube_token_expiry');
-        console.log('No valid stored token found or token expired');
+        console.log(this.refreshToken
+          ? 'Access token expired; refresh token available for silent renewal'
+          : 'No valid stored token and no refresh token');
       }
     } catch (error) {
       console.error('Error loading stored token:', error);
@@ -116,7 +124,7 @@ export class YouTubeAPI {
     }
   }
 
-  private storeToken(token: string, expiresIn: number): void {
+  private storeToken(token: string, expiresIn: number, refreshToken?: string | null): void {
     try {
       this.accessToken = token;
       this.isAuthenticated = true;
@@ -124,6 +132,14 @@ export class YouTubeAPI {
 
       const expiryTime = new Date().getTime() + (expiresIn * 1000);
       localStorage.setItem('youtube_token_expiry', expiryTime.toString());
+
+      // Google only returns a refresh_token on the first consent (or when
+      // prompt=consent is used). On a plain refresh it is omitted, so keep the
+      // existing one instead of wiping it.
+      if (refreshToken) {
+        this.refreshToken = refreshToken;
+        localStorage.setItem('youtube_refresh_token', refreshToken);
+      }
     } catch (error) {
       console.error('Error storing token:', error);
     }
@@ -131,9 +147,11 @@ export class YouTubeAPI {
 
   private clearStoredToken(): void {
     this.accessToken = null;
+    this.refreshToken = null;
     this.isAuthenticated = false;
     localStorage.removeItem('youtube_access_token');
     localStorage.removeItem('youtube_token_expiry');
+    localStorage.removeItem('youtube_refresh_token');
     localStorage.removeItem('oauth_state');
   }
 
@@ -299,6 +317,10 @@ export class YouTubeAPI {
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl',
       access_type: 'offline',
+      // Force the consent screen so Google always returns a refresh_token.
+      // Without this, offline access only yields a refresh_token on the very
+      // first authorization, leaving repeat logins without one.
+      prompt: 'consent',
       state: state
     });
 
@@ -336,27 +358,139 @@ export class YouTubeAPI {
     this.beforeRedirectCallback = callback;
   }
 
-  private async ensureValidToken(): Promise<void> {
-    if (!this.isTokenValid()) {
-      console.warn('Token is expired or invalid, clearing stored token and triggering re-authentication');
-      this.clearStoredToken();
+  hasRefreshToken(): boolean {
+    return !!this.refreshToken;
+  }
 
-      if (this.beforeRedirectCallback) {
-        this.beforeRedirectCallback();
-      }
-
-      const authResult = await this.authenticate();
-      if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {
-        throw new Error('Re-authentication failed: ' + authResult.error);
-      }
-
-      throw new Error('Token was invalid and re-authentication has been triggered. Please try again.');
+  /**
+   * Exchange the stored refresh_token for a fresh access_token without any user
+   * interaction. Concurrent callers share a single in-flight request.
+   * Returns true on success, false if there is no usable refresh token.
+   */
+  private async refreshAccessToken(): Promise<boolean> {
+    if (!this.refreshToken) {
+      return false;
     }
+
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.performTokenRefresh();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<boolean> {
+    if (!this.config.clientId) {
+      await this.waitForCredentials();
+    }
+
+    if (!this.refreshToken || !this.config.clientId) {
+      return false;
+    }
+
+    try {
+      const body = new URLSearchParams({
+        client_id: this.config.clientId,
+        grant_type: 'refresh_token',
+        refresh_token: this.refreshToken
+      });
+
+      if (this.config.clientSecret) {
+        body.append('client_secret', this.config.clientSecret);
+      }
+
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn('Token refresh failed:', errorData);
+        // invalid_grant means the refresh token was revoked/expired; drop the
+        // whole session so the app falls back to a full re-login.
+        if (errorData.error === 'invalid_grant') {
+          this.clearStoredToken();
+        }
+        return false;
+      }
+
+      const tokenData = await response.json();
+      if (tokenData.access_token) {
+        this.storeToken(
+          tokenData.access_token,
+          tokenData.expires_in || 3600,
+          tokenData.refresh_token
+        );
+        console.log('Access token refreshed silently via refresh token');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Restore an authenticated session on app start. If the access token is still
+   * valid it is used as-is; otherwise a silent refresh is attempted. Returns
+   * true when the session is usable afterwards.
+   */
+  async tryRestoreSession(): Promise<boolean> {
+    if (this.isTokenValid()) {
+      return true;
+    }
+    if (this.refreshToken) {
+      return await this.refreshAccessToken();
+    }
+    return false;
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (this.isTokenValid()) {
+      return;
+    }
+
+    // Access token expired: try a silent refresh before forcing re-login.
+    if (this.refreshToken && await this.refreshAccessToken()) {
+      return;
+    }
+
+    console.warn('Token expired and silent refresh unavailable, triggering re-authentication');
+    this.clearStoredToken();
+
+    if (this.beforeRedirectCallback) {
+      this.beforeRedirectCallback();
+    }
+
+    const authResult = await this.authenticate();
+    if (!authResult.success && !authResult.error?.includes('Redirecting to OAuth')) {
+      throw new Error('Re-authentication failed: ' + authResult.error);
+    }
+
+    throw new Error('Token was invalid and re-authentication has been triggered. Please try again.');
   }
 
   private async handleApiResponse(response: Response): Promise<Response> {
     if (response.status === 401) {
-      console.warn('401 Unauthorized - token may be invalid, clearing stored token and triggering re-authentication');
+      console.warn('401 Unauthorized - attempting silent token refresh before re-authentication');
+
+      // The server rejected the access token (e.g. revoked or clock skew).
+      // Try a silent refresh first; if it works the caller can simply retry.
+      if (this.refreshToken && await this.refreshAccessToken()) {
+        throw new Error('Token was refreshed. Please retry the request.');
+      }
+
       this.clearStoredToken();
 
       if (this.beforeRedirectCallback) {
@@ -681,11 +815,12 @@ export class YouTubeAPI {
     return !!this.config.clientId;
   }
 
-  getAuthStatus(): { isLoggedIn: boolean; hasCredentials: boolean; hasToken: boolean; tokenLength?: number; isTokenValid: boolean } {
+  getAuthStatus(): { isLoggedIn: boolean; hasCredentials: boolean; hasToken: boolean; hasRefreshToken: boolean; tokenLength?: number; isTokenValid: boolean } {
     return {
       isLoggedIn: this.isLoggedIn(),
       hasCredentials: this.hasCredentials(),
       hasToken: !!this.accessToken,
+      hasRefreshToken: !!this.refreshToken,
       tokenLength: this.accessToken?.length,
       isTokenValid: this.isTokenValid()
     };
@@ -738,7 +873,11 @@ export class YouTubeAPI {
       const tokenData = await tokenResponse.json();
 
       if (tokenData.access_token) {
-        this.storeToken(tokenData.access_token, tokenData.expires_in || 3600);
+        this.storeToken(
+          tokenData.access_token,
+          tokenData.expires_in || 3600,
+          tokenData.refresh_token
+        );
         localStorage.removeItem('oauth_state');
         return { success: true };
       } else {

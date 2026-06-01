@@ -901,6 +901,11 @@ class YouTubeBatchManager {
       state: state ? state.substring(0, 8) + '...' : null
     });
 
+    if (!code && !state && !this.youtubeAPI.isLoggedIn() && this.youtubeAPI.hasRefreshToken()) {
+      console.log('Access token expired; attempting silent session restore via refresh token...');
+      await this.youtubeAPI.tryRestoreSession();
+    }
+
     if (code && state) {
       this.showLoadingOverlay(rendererI18n.t('loading.processingAuthentication'), rendererI18n.t('loading.processingAuthSubtext'));
 
@@ -1425,7 +1430,7 @@ class YouTubeBatchManager {
 
   async deleteCache(): Promise<void> {
     try {
-      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'oauth_state'];
+      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'youtube_refresh_token', 'oauth_state'];
       keysToRemove.forEach(key => localStorage.removeItem(key));
 
       this.state.allVideos = [];
@@ -1447,7 +1452,7 @@ class YouTubeBatchManager {
 
   async removeSavedCredentials(): Promise<void> {
     try {
-      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'oauth_state'];
+      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'youtube_refresh_token', 'oauth_state'];
       keysToRemove.forEach(key => localStorage.removeItem(key));
 
       this.youtubeAPI.logout();
