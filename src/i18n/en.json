@@ -56,7 +56,8 @@
     "title": "Title",
     "description": "Description",
     "tags": "Tags",
-    "tagsPlaceholder": "Add tags (comma-separated)"
+    "tagsPlaceholder": "Add tags (comma-separated)",
+    "copyTags": "Copy tags"
   },
   "video": {
     "title": "Title",
@@ -109,6 +110,9 @@
     "videoUpdated": "Video updated successfully",
     "videosExported": "Exported {count} videos",
     "videosImported": "Imported {count} videos",
+    "tagsCopied": "Copied {count} tags to clipboard",
+    "noTagsToCopy": "No tags to copy",
+    "failedToCopyTags": "Failed to copy tags",
     "videosLoaded": "Loaded {count} videos",
     "videosSaved": "Successfully updated {count} videos",
     "cacheCleared": "Cache cleared successfully",
