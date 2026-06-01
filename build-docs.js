@@ -257,6 +257,7 @@ function buildDocs() {
 
   const readmePath = path.join(__dirname, 'README.md');
   const privacyPath = path.join(__dirname, 'PRIVACY.md');
+  const termsPath = path.join(__dirname, 'TERMS.md');
 
   if (fs.existsSync(readmePath)) {
     const readmeContent = fs.readFileSync(readmePath, 'utf8');
@@ -282,6 +283,19 @@ function buildDocs() {
 
     fs.writeFileSync(path.join(distDir, 'privacy.html'), privacyFullHtml);
     console.log('Generated dist/privacy.html from PRIVACY.md');
+  }
+
+  if (fs.existsSync(termsPath)) {
+    const termsContent = fs.readFileSync(termsPath, 'utf8');
+    const termsHtml = marked(termsContent);
+    const termsFullHtml = htmlTemplate(
+      'Terms of Service',
+      termsHtml,
+      'Terms of Service for YT Batch Manager'
+    );
+
+    fs.writeFileSync(path.join(distDir, 'terms.html'), termsFullHtml);
+    console.log('Generated dist/terms.html from TERMS.md');
   }
 }
 

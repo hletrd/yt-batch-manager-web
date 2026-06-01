@@ -80,7 +80,8 @@
   "navigation": {
     "sortBy": "Sort by",
     "advanced": "Functions",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",
