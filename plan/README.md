@@ -18,7 +18,13 @@ Plans derived from `.context/reviews/_aggregate.md` (cycle 1). Each finding from
 - `04-maintainability-refactor.md` — A11, A26, A27, A28, A12.
 - `05-correctness-edge-cases.md` — A21, A22, A32, A13.
 - `06-docs.md` — A17, A18, A20(verify+document), A29(tooling warning), A14.
-- `DEFERRED.md` — findings intentionally not scheduled this cycle (with reasons + exit criteria).
+- `07-cycle2-security-correctness-i18n.md` — Cycle 2: B1–B11, B13 (scheduled); B12/B14–B17 deferred.
+- `DEFERRED.md` — findings intentionally not scheduled (with reasons + exit criteria); cycle-1 (A*) and cycle-2 (B*).
+
+## Cycle 2 note
+Cycle-1 plans 01–06 are fully implemented (T-items marked `[x]`/`[D]`); they remain for
+provenance and are effectively archived. New cycle-2 work lives in Plan 07, derived from
+`.context/reviews/_aggregate-cycle2.md`.
 
 ## Status legend
 `[ ]` todo · `[~]` in progress · `[x]` done · `[D]` deferred (see DEFERRED.md)

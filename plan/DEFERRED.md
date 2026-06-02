@@ -65,3 +65,56 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Citation: `src/youtube-api.ts:189-196`.
 - Reason: architecture is a public client; PKCE is enforced. The actionable doc note (lock GCP redirect URIs/origins) IS scheduled in Plan 06 T5. Eliminating the secret entirely would require switching OAuth client type — a GCP-side change outside this repo.
 - Exit criterion: migrate the OAuth client to a PKCE-public (no-secret) type in Google Cloud Console.
+
+---
+
+# Cycle 2 deferred findings
+
+Only existing cycle-2 review findings (`.context/reviews/_aggregate-cycle2.md`) appear
+here. Severity/confidence preserved exactly. NONE of the deferred items below are
+security, correctness, or data-loss findings — those (B1, B2, B3) are scheduled in
+Plan 07 T1–T3 and are not deferrable. Repo policy still binds these when picked up
+(GPG-signed commits, conventional + gitmoji, no `--no-verify`, no force-push, latest
+toolchain).
+
+## B12 — `originalVideosState` shallow snapshot shares nested objects
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/app.ts:737,1492,1984`.
+- Reason: latent only — no current code mutates `statistics`/`thumbnails`/
+  `processing_progress` in place, so change-detection is correct today. A defensive deep
+  snapshot adds cost/churn without fixing an observed bug. Not a correctness/data-loss
+  finding at present.
+- Exit criterion: re-open if any code begins mutating those nested objects in place, or
+  when the A11 render/state refactor lands.
+
+## B14 — `<html lang>` static `en`, updated only by JS post-init
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/index.html:2`, `src/app.ts:933`.
+- Reason: this is a static single-page app with no SSR; the runtime JS already sets the
+  correct lang after i18n init (cycle-1 A7). A correct static default would require build-
+  time language selection, which is out of scope and low value. Not security/correctness.
+- Exit criterion: if the app gains SSR/prerendering or a build-time locale split.
+
+## B15 — `made_for_kids` modeled + read but never written/displayed
+- Severity/Confidence: LOW / Low.
+- Citation: `src/types.ts:23`, `src/youtube-api.ts:644`.
+- Reason: intentional after cycle-1 A5 — the field is retained so backups can round-trip
+  the value; removing it would lose that data on export. Read-but-unused in the UI is by
+  design, not a defect.
+- Exit criterion: if backup export stops needing the field, or the UI adds a made-for-kids
+  control.
+
+## B16 — Unused `batchUpdateVideos` public method
+- Severity/Confidence: LOW / Low.
+- Citation: `src/youtube-api.ts:784-812`.
+- Reason: pure dead-code removal with no behavior change; deferred to keep the cycle diff
+  focused on security/correctness. Not a correctness/security issue.
+- Exit criterion: remove during the next `youtube-api.ts` refactor, or if it remains
+  unused next cycle, delete it then.
+
+## B17 — README lacks an import trust-model note
+- Severity/Confidence: INFO / Medium.
+- Citation: README Features / file-operations.
+- Reason: documentation-only, and only meaningful once B1/B2 sanitization ships (so the
+  note is accurate). INFO severity. Pair with B1/B2 in a later docs pass.
+- Exit criterion: after B1/B2 fixes are merged, add a one-line import-sanitization note.
