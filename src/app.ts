@@ -2000,6 +2000,24 @@ class YouTubeBatchManager {
 
       const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
 
+      // videos.update replaces the whole `status` part, deleting any omitted
+      // property. For a video imported from a backup, license/embeddable/
+      // public_stats_viewable are unknown locally (the backup export strips them),
+      // so re-sending them as undefined would wipe them on YouTube. When all three
+      // are missing, backfill the live status from YouTube before building the
+      // request so the save preserves the creator's existing settings.
+      if (video.license === undefined && video.embeddable === undefined && video.public_stats_viewable === undefined) {
+        const liveStatus = await this.youtubeAPI.getVideoStatus(videoId);
+        if (liveStatus) {
+          video.license = liveStatus.license;
+          video.embeddable = liveStatus.embeddable;
+          video.public_stats_viewable = liveStatus.public_stats_viewable;
+          if (video.made_for_kids === undefined) {
+            video.made_for_kids = liveStatus.made_for_kids;
+          }
+        }
+      }
+
       // Read the live element value when the element exists, falling back to the
       // stored value only when the element is missing. Using `el?.value || stored`
       // would treat an intentionally-cleared field (empty string) as "unchanged"

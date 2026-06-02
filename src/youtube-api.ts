@@ -705,6 +705,49 @@ export class YouTubeAPI {
     return `${prefix}: ${detail}`;
   }
 
+  /**
+   * Fetch the current mutable status fields for a single video. Used before an
+   * update of a video whose status was not loaded from YouTube (e.g. imported
+   * from a backup) so that videos.update does not wipe properties that are simply
+   * unknown locally — videos.update replaces the whole `status` part, deleting any
+   * omitted property. Returns null on failure so the caller can proceed without
+   * blocking the save.
+   */
+  async getVideoStatus(videoId: string): Promise<Pick<VideoData, 'license' | 'embeddable' | 'public_stats_viewable' | 'contains_synthetic_media' | 'made_for_kids'> | null> {
+    if (!this.isAuthenticated || !this.accessToken) {
+      return null;
+    }
+
+    try {
+      await this.ensureValidToken();
+
+      const params = new URLSearchParams({ part: 'status', id: videoId });
+      const response = await this.authedFetch(
+        `https://www.googleapis.com/youtube/v3/videos?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      const status = data.items?.[0]?.status;
+      if (!status) {
+        return null;
+      }
+
+      return {
+        license: status.license,
+        embeddable: status.embeddable,
+        public_stats_viewable: status.publicStatsViewable,
+        contains_synthetic_media: status.containsSyntheticMedia,
+        made_for_kids: status.madeForKids
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async updateVideo(videoId: string, updates: Partial<VideoData>): Promise<{ success: boolean; error?: string }> {
     if (!this.isAuthenticated || !this.accessToken) {
       return { success: false, error: 'Not authenticated' };
