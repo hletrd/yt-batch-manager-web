@@ -1,3 +1,5 @@
+import type { VideoData, ThumbnailData } from './types.js';
+
 interface YouTubeAPIConfig {
   clientId?: string;
   clientSecret?: string;
@@ -18,38 +20,6 @@ interface OAuthCredentials {
   };
 }
 
-interface VideoData {
-  id: string;
-  title: string;
-  description: string;
-  thumbnail_url: string;
-  thumbnails: Record<string, ThumbnailData>;
-  published_at: string;
-  privacy_status: string;
-  category_id: string;
-  tags?: string[];
-  defaultAudioLanguage?: string;
-  contains_synthetic_media?: boolean;
-  made_for_kids?: boolean;
-  license?: string;
-  embeddable?: boolean;
-  public_stats_viewable?: boolean;
-  duration?: string;
-  upload_status?: string;
-  processing_status?: string;
-  statistics?: {
-    view_count?: string;
-    like_count?: string;
-    dislike_count?: string;
-    comment_count?: string;
-  };
-}
-
-interface ThumbnailData {
-  url: string;
-  width: number;
-  height: number;
-}
 
 export class YouTubeAPI {
   private config: YouTubeAPIConfig = {};
