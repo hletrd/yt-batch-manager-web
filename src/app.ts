@@ -1,43 +1,6 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI } from './youtube-api.js';
-
-interface VideoData {
-  id: string;
-  title: string;
-  description: string;
-  thumbnail_url: string;
-  thumbnails: Record<string, ThumbnailData>;
-  published_at: string;
-  privacy_status: string;
-  category_id: string;
-  tags?: string[];
-  defaultAudioLanguage?: string;
-  contains_synthetic_media?: boolean;
-  made_for_kids?: boolean;
-  license?: string;
-  embeddable?: boolean;
-  public_stats_viewable?: boolean;
-  duration?: string;
-  upload_status?: string;
-  processing_status?: string;
-  processing_progress?: {
-    parts_total?: number;
-    parts_processed?: number;
-    time_left_ms?: number;
-  };
-  statistics?: {
-    view_count?: string;
-    like_count?: string;
-    dislike_count?: string;
-    comment_count?: string;
-  };
-}
-
-interface ThumbnailData {
-  url: string;
-  width: number;
-  height: number;
-}
+import type { VideoData } from './types.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -1567,7 +1530,10 @@ class YouTubeBatchManager {
 
   async deleteCache(): Promise<void> {
     try {
-      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'youtube_refresh_token', 'oauth_state'];
+      // Clear the full auth/session key set. oauth_code_verifier was previously
+      // omitted here while clearStoredToken removes it, leaving a stale verifier
+      // behind on this path.
+      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'youtube_refresh_token', 'oauth_state', 'oauth_code_verifier'];
       keysToRemove.forEach(key => localStorage.removeItem(key));
 
       this.state.allVideos = [];
@@ -1590,9 +1556,8 @@ class YouTubeBatchManager {
 
   async removeSavedCredentials(): Promise<void> {
     try {
-      const keysToRemove = ['youtube_access_token', 'youtube_token_expiry', 'youtube_refresh_token', 'oauth_state'];
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-
+      // logout() -> clearStoredToken() already removes the full token/OAuth key
+      // set (including oauth_code_verifier), so no separate manual list is needed.
       this.youtubeAPI.logout();
 
       this.state.allVideos = [];
