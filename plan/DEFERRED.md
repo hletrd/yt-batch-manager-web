@@ -1,0 +1,67 @@
+# Deferred Findings — yt-batch-manager-web (cycle 1)
+
+Only existing review findings appear here (no new refactors/features invented). Severity/confidence preserved exactly from `.context/reviews/_aggregate.md`. No security, correctness, or data-loss finding is deferred — all such findings (A1, A2, A3, A4, A5, A6, A9, A19, A13, A21, A22) are scheduled in Plans 01 and 05.
+
+Repo policy still binds deferred work when picked up: GPG-signed commits, conventional commits + gitmoji, no `--no-verify`, no force-push, latest toolchain.
+
+---
+
+## A11 (part) — Decompose the 2094-line `YouTubeBatchManager` god class
+- Severity/Confidence: MEDIUM / High.
+- Citation: `src/app.ts` (whole file); ARCH-1.
+- Reason for deferral: large structural refactor with high regression risk and zero behavior change; out of scope for a single review-fix cycle. The data-correctness and dup-type parts of A11 ARE addressed now (Plan 04 T1–T3 shared types; Plan 01 fixes the XSS that motivates moving away from string HTML).
+- Exit criterion: re-open when the next feature touches rendering/state, or when a test harness is introduced (whichever first).
+
+## A2x parts of A28 — Replace remaining `setTimeout` timing hacks
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/app.ts:548-558` (post-insert 10ms textarea sizing + i18n), `:1008`, `:106`.
+- Reason: the post-insert sizing is intertwined with the string-HTML render path; safely fixing it depends on the A11 refactor. The cheap focus-after-tag-edit cases ARE improved in Plan 04 T6.
+- Exit criterion: addressed together with A11 decomposition, or if a concrete timing bug is reproduced.
+
+## A27 (part) — Fully type all YouTube API responses
+- Severity/Confidence: LOW / High.
+- Citation: `src/youtube-api.ts` (`Promise<any>`, `item: any`).
+- Reason: Plan 04 T4 types the consumed shapes (`getVideos`, `getChannelInfo`); exhaustively typing every endpoint/field is large and low-value relative to risk.
+- Exit criterion: when adding a new endpoint or when a type-related runtime bug is found.
+
+## A30 — Debounce textarea auto-resize
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/app.ts:325-330,336,1634`.
+- Reason: per-keystroke reflow is minor; rAF-batching risks visible layout jitter and needs manual UX verification not feasible without a live login this cycle. Tracked in Plan 03 T6 as a candidate.
+- Exit criterion: a user-reported typing-lag report, or when the render path is refactored (A11).
+
+## A32 — `restoreTemporaryChanges` drops select value when option absent
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/app.ts:2014-2079`.
+- Reason: only triggers when API metadata failed to load AND a restored category/language is outside the fallback set — rare. Listed in Plan 05 T4. Deferring the fix, not the awareness.
+- Exit criterion: a reproduction where a restored value is silently lost, or when metadata-load-failure handling is revisited.
+
+## A34 / Plan 02 T6 — Generated docs `lang="en"`
+- Severity/Confidence: LOW / Medium.
+- Citation: `build-docs.js:6`.
+- Reason: doc pages are predominantly English; bilingual `lang` switching for static generated docs is low value. Main-app lang (A7) is fixed in Plan 02 T1.
+- Exit criterion: if generated docs become per-language, or a localization pass is undertaken.
+
+## A18 / Plan 06 T4 — PRIVACY.md contact address looks like a placeholder
+- Severity/Confidence: MEDIUM / Medium.
+- Citation: `PRIVACY.md:123` (`01@0101010101.com`).
+- Reason: NOT a code/security/data-loss issue; it is published-content requiring the maintainer's real contact address — cannot be invented by the agent. (Repo has no rule forbidding placeholder contacts, so deferral is permitted as it is a docs/content decision, not security/correctness.)
+- Exit criterion: maintainer supplies the correct monitored contact email.
+
+## A15 — OAuth refresh token in localStorage
+- Severity/Confidence: LOW / High.
+- Citation: `src/youtube-api.ts:136,146`.
+- Reason: inherent to a backend-less static SPA; there is no safer client-only store for a refresh token that must survive reloads (the README advertises persistent login). The mitigations (eliminate XSS sink A1, add CSP A6) ARE implemented in Plan 01. Per repo intent (README explicitly advertises "stays signed in across reloads"), persisting the refresh token is a deliberate product decision. This is a documented residual risk, not a deferred fix.
+- Exit criterion: if a backend/token-broker is ever introduced, move token storage server-side.
+
+## A26 (dedup part only) — DRY helper extraction for no-credentials / channel-reset blocks
+- Severity/Confidence: LOW / High.
+- Citation: `src/app.ts` (no-credentials blocks at ~362, ~1020, ~1483; near-identical logout/removeSavedCredentials bodies).
+- Reason: the user-visible defect in A26 (a no-credentials copy missing `data-i18n`) was FIXED this cycle (Plan 02 T2). What remains is a pure non-behavioral DRY refactor (extract renderNoCredentials/resetChannelHeader). Deferred to keep the cycle diff focused; not a correctness/security issue.
+- Exit criterion: extract the helper the next time one of these blocks needs a content/markup change, or as part of the A11 decomposition.
+
+## A20 (storage part) — `client_secret` shipped to browser
+- Severity/Confidence: LOW / Medium.
+- Citation: `src/youtube-api.ts:189-196`.
+- Reason: architecture is a public client; PKCE is enforced. The actionable doc note (lock GCP redirect URIs/origins) IS scheduled in Plan 06 T5. Eliminating the secret entirely would require switching OAuth client type — a GCP-side change outside this repo.
+- Exit criterion: migrate the OAuth client to a PKCE-public (no-secret) type in Google Cloud Console.

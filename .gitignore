@@ -3,3 +3,6 @@ dist
 
 .vscode
 **/.DS_Store
+
+# Local orchestrator/agent state (review-plan-fix tooling)
+.omc
