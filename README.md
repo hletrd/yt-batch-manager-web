@@ -32,6 +32,9 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
 * Edit video titles and descriptions in a single page, which YouTube does not allow.
   * YouTube forces a very user-unfriendly experiences, where you have to go to each video page to edit the title and description, and then save it.
 * Bulk-edit privacy status, category, audio language, and tags as well.
+* Toggle the "altered or synthetic content" (AI) disclosure per video.
+* Copy a video's tags to the clipboard with one click.
+* Likely YouTube Shorts (3 minutes or shorter) are flagged with a badge.
 * Save/load video data to/from local JSON files for offline editing and backup.
 * Stays signed in across reloads — the session is restored automatically, so you don't have to log in again every hour.
 
@@ -41,6 +44,9 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
   * 이거 유튜브 Studio 웹페이지나 YT Studio 앱에서는 안 됩니다. 대체 왜 안 되는지 모르겠습니다.
 * 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다.
 * 영상 공개 설정 / 카테고리 / 언어 / 태그 등도 한 번에 편집할 수 있습니다.
+* 영상별로 '변경되거나 합성된 콘텐츠(AI)' 공개 여부를 설정할 수 있습니다.
+* 버튼 한 번으로 영상의 태그를 클립보드에 복사할 수 있습니다.
+* 쇼츠로 추정되는 영상(3분 이하)에는 배지가 표시됩니다.
 * 새로고침하거나 다시 접속해도 로그인이 유지되어, 한 시간마다 다시 로그인할 필요가 없습니다.
 
 ---
@@ -71,6 +77,7 @@ $ npm install
 5. Click 'Get started'. Fill in the app name as whatever you want and user support email as your email address. Set audience to 'External'. Input your email addreess in 'Contact information'. Agree to the usage policy, and tap 'Create'.
 6. click 'Clients' on the left sidebar.
 7. Create a new client app as a web app, name it whatever you want.
+   * **Important:** restrict the client's **Authorized JavaScript origins** and **Authorized redirect URIs** to the exact domain where you deploy the app (e.g. `https://your-domain.example`). Because this is a browser-only app, the OAuth `client_secret` ships to the client; locking the origins/redirect URIs is what keeps that secret from being usable elsewhere (PKCE is also enforced by the app).
 8. Download the credentials JSON file, and rename it to `credentials.json`. Put it in the directory `src/`.
 
 ##### Add scopes
