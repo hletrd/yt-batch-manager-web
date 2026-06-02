@@ -391,7 +391,7 @@ class YouTubeBatchManager {
               ${this.generateResponsiveImageHtml(video)}
             </div>
             <div class="video-info">
-              <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" class="video-id-link">
+              <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="video-id-link">
                 https://youtu.be/${video.id}
               </a>
               <div class="video-title">${this.escapeHtml(video.title)}</div>
