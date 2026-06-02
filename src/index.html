@@ -545,6 +545,17 @@
       color: var(--text-primary);
     }
 
+    /* #ffffff on #c00000 ≈ 5.9:1 contrast (WCAG AA pass for this small bold text). */
+    .short-badge {
+      background: #c00000;
+      color: #ffffff;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
     .video-status {
       font-size: 11px;
       padding: 2px 6px;
@@ -1131,13 +1142,24 @@
         padding: 16px 16px 0px 16px;
       }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="header-content">
       <div class="header-left">
-        <button type="button" class="burger-menu" onclick="app.toggleMobileMenu()" aria-label="Toggle menu">
+        <button type="button" class="burger-menu" onclick="app.toggleMobileMenu()" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
           <span class="burger-line"></span>
           <span class="burger-line"></span>
           <span class="burger-line"></span>
@@ -1266,9 +1288,9 @@
     </div>
   </div>
 
-  <div id="status-message" class="status-message"></div>
+  <div id="status-message" class="status-message" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <div class="loading-overlay" id="loading-overlay">
+  <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite" aria-busy="true">
     <div class="loading-container">
       <div class="loading-spinner"></div>
       <div class="loading-text" id="loading-text" data-i18n="app.loading">Loading...</div>
