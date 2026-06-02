@@ -20,6 +20,7 @@ Plans derived from `.context/reviews/_aggregate.md` (cycle 1). Each finding from
 - `06-docs.md` — A17, A18, A20(verify+document), A29(tooling warning), A14.
 - `07-cycle2-security-correctness-i18n.md` — Cycle 2: B1–B11, B13 (scheduled); B12/B14–B17 deferred.
 - `08-cycle3-option-escaping.md` — Cycle 3: C1 (scheduled, option-markup escaping); C2 deferred.
+- `09-cycle4-dead-state-and-placeholder.md` — Cycle 4: D1 (dead `saveInProgress` field removal) + D2 (tag-input placeholder escaping consistency); both scheduled, none deferred.
 - `DEFERRED.md` — findings intentionally not scheduled (with reasons + exit criteria); cycle-1 (A*), cycle-2 (B*), cycle-3 (C*).
 
 ## Cycle 2 note
@@ -32,6 +33,12 @@ The repo has materially stabilized: all A* and B* findings re-verified as fixed/
 Cycle-3 found only two LOW findings. Work lives in Plan 08, derived from
 `.context/reviews/_aggregate-cycle3.md`: C1 scheduled (option-markup escaping), C2
 deferred (DEFERRED.md).
+
+## Cycle 4 note
+Convergence continuing: all A*/B*/C* findings re-verified as fixed/deferred. Cycle-4
+found only one LOW (D1, dead `saveInProgress` field) and one INFO (D2, tag-input
+placeholder escaping consistency — not attacker-reachable). Both scheduled in Plan 09;
+nothing newly deferred. Derived from `.context/reviews/_aggregate-cycle4.md`.
 
 ## Status legend
 `[ ]` todo · `[~]` in progress · `[x]` done · `[D]` deferred (see DEFERRED.md)
