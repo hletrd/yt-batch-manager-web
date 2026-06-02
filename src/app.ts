@@ -79,6 +79,10 @@ class YouTubeBatchManager {
     isLoading: false,
   };
   private originalVideosState: Map<string, VideoData> = new Map();
+  // id -> live VideoData index, mirroring state.allVideos. Rebuilt whenever
+  // allVideos is (re)assigned so hot-path lookups in per-keystroke handlers are
+  // O(1) instead of a linear scan over potentially hundreds of videos.
+  private videoIndex: Map<string, VideoData> = new Map();
   private youtubeAPI: YouTubeAPI;
   private saveInProgress: Set<string> = new Set();
   private batchSaveInProgress: boolean = false;
@@ -90,6 +94,9 @@ class YouTubeBatchManager {
   private readonly VIDEO_CACHE_KEY = 'yt_video_cache';
   private readonly TEMP_CHANGES_KEY = 'yt_temp_form_changes';
   private isOAuthRedirecting = false;
+  // In-memory copy of the cached channelId so updateVideoCache does not have to
+  // re-parse the entire serialized video cache on every single-video save.
+  private cachedChannelId?: string;
 
   constructor() {
     this.youtubeAPI = new YouTubeAPI();
@@ -106,6 +113,16 @@ class YouTubeBatchManager {
     setTimeout(() => {
       this.updateAuthDependentButtons();
     }, 100);
+  }
+
+  // Keep videoIndex in sync with state.allVideos. Call after any assignment to
+  // state.allVideos. Lookups go through getVideo() for O(1) access.
+  private rebuildVideoIndex(): void {
+    this.videoIndex = new Map(this.state.allVideos.map(v => [v.id, v]));
+  }
+
+  private getVideo(videoId: string): VideoData | undefined {
+    return this.videoIndex.get(videoId);
   }
 
   private formatDuration(isoDuration?: string): string {
@@ -554,9 +571,12 @@ class YouTubeBatchManager {
         this.updateTitleCounter(video.id);
         this.updateDescriptionCounter(video.id);
         this.updateTagsCounter(video.id);
-        rendererI18n.updatePageTexts();
       }, 10);
     }
+
+    // Run the i18n sweep once for the whole batch rather than once per inserted
+    // video (it queries the entire document each call).
+    setTimeout(() => rendererI18n.updatePageTexts(), 10);
 
     this.state.displayedVideos = this.state.displayedVideos.concat(videosToAdd);
     this.state.currentPage++;
@@ -652,6 +672,7 @@ class YouTubeBatchManager {
         channelId
       };
       localStorage.setItem(this.VIDEO_CACHE_KEY, JSON.stringify(cacheData));
+      this.cachedChannelId = channelId;
       console.log('Videos cached to localStorage:', videos.length);
     } catch (error) {
       console.warn('Failed to cache videos:', error);
@@ -674,6 +695,7 @@ class YouTubeBatchManager {
         return null;
       }
 
+      this.cachedChannelId = cacheData.channelId;
       console.log('Loading videos from cache:', cacheData.videos.length);
       return cacheData.videos;
     } catch (error) {
@@ -685,23 +707,16 @@ class YouTubeBatchManager {
 
   private clearVideoCache(): void {
     localStorage.removeItem(this.VIDEO_CACHE_KEY);
+    this.cachedChannelId = undefined;
     console.log('Video cache cleared');
   }
 
   private updateVideoCache(): void {
     try {
       if (this.state.allVideos.length > 0) {
-        let channelId: string | undefined;
-        const existingCache = localStorage.getItem(this.VIDEO_CACHE_KEY);
-        if (existingCache) {
-          try {
-            const existingData: VideoCacheData = JSON.parse(existingCache);
-            channelId = existingData.channelId;
-          } catch {
-          }
-        }
-
-        this.saveVideosToCache(this.state.allVideos, channelId);
+        // Reuse the in-memory channelId instead of re-parsing the whole cache on
+        // every save.
+        this.saveVideosToCache(this.state.allVideos, this.cachedChannelId);
         console.log('Video cache updated with latest changes');
       }
     } catch (error) {
@@ -741,6 +756,7 @@ class YouTubeBatchManager {
       }
 
       this.state.allVideos = videos;
+      this.rebuildVideoIndex();
       this.state.displayedVideos = [...videos];
       this.state.changedVideos.clear();
 
@@ -845,7 +861,18 @@ class YouTubeBatchManager {
   }
 
   private setupEventListeners(): void {
-    window.addEventListener('scroll', () => this.handleScroll());
+    // Coalesce scroll events to at most one handler run per animation frame and
+    // register the listener as passive so it never blocks scrolling. handleScroll
+    // reads layout properties, so firing it on every raw scroll event caused jank.
+    let scrollRafScheduled = false;
+    window.addEventListener('scroll', () => {
+      if (scrollRafScheduled) return;
+      scrollRafScheduled = true;
+      requestAnimationFrame(() => {
+        scrollRafScheduled = false;
+        void this.handleScroll();
+      });
+    }, { passive: true });
 
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
@@ -926,12 +953,6 @@ class YouTubeBatchManager {
         });
       }
     });
-
-    setInterval(() => {
-      if (this.state.changedVideos.size > 0) {
-        console.log(`${this.state.changedVideos.size} videos have unsaved changes`);
-      }
-    }, 30000);
   }
 
   private async initializeApp(): Promise<void> {
@@ -1306,7 +1327,7 @@ class YouTubeBatchManager {
 
     for (let i = 0; i < changedVideosArray.length; i++) {
       const videoId = changedVideosArray[i];
-      const video = this.state.allVideos.find(v => v.id === videoId);
+      const video = this.getVideo(videoId);
 
       if (!video) {
         errorCount++;
@@ -1475,6 +1496,7 @@ class YouTubeBatchManager {
     const baselineState = new Map(this.originalVideosState);
 
     this.state.allVideos = videoData;
+    this.rebuildVideoIndex();
     this.state.displayedVideos = [...videoData];
     this.state.changedVideos.clear();
     this.originalVideosState.clear();
@@ -1500,6 +1522,7 @@ class YouTubeBatchManager {
     try {
       this.youtubeAPI.logout();
       this.state.allVideos = [];
+      this.rebuildVideoIndex();
       this.state.displayedVideos = [];
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
@@ -1548,6 +1571,7 @@ class YouTubeBatchManager {
       keysToRemove.forEach(key => localStorage.removeItem(key));
 
       this.state.allVideos = [];
+      this.rebuildVideoIndex();
       this.state.displayedVideos = [];
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
@@ -1572,6 +1596,7 @@ class YouTubeBatchManager {
       this.youtubeAPI.logout();
 
       this.state.allVideos = [];
+      this.rebuildVideoIndex();
       this.state.displayedVideos = [];
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
@@ -1707,7 +1732,7 @@ class YouTubeBatchManager {
   }
 
   private checkForChanges(videoId: string): void {
-    const video = this.state.allVideos.find(v => v.id === videoId);
+    const video = this.getVideo(videoId);
     const original = this.originalVideosState.get(videoId);
 
     if (!video || !original) return;
@@ -1839,7 +1864,7 @@ class YouTubeBatchManager {
   addTag(videoId: string, tagText: string): void {
     if (!tagText || tagText.length === 0) return;
 
-    const video = this.state.allVideos.find(v => v.id === videoId);
+    const video = this.getVideo(videoId);
     if (!video) return;
 
     const cleanTag = tagText.trim();
@@ -1867,7 +1892,7 @@ class YouTubeBatchManager {
 
   private renderTagsContainer(videoId: string): void {
     const container = document.getElementById(`tags-container-${videoId}`);
-    const video = this.state.allVideos.find(v => v.id === videoId);
+    const video = this.getVideo(videoId);
 
     if (!container || !video) return;
 
@@ -1907,7 +1932,7 @@ class YouTubeBatchManager {
   }
 
   removeTag(videoId: string, tagText: string): void {
-    const video = this.state.allVideos.find(v => v.id === videoId);
+    const video = this.getVideo(videoId);
     if (!video || !video.tags) return;
 
     video.tags = video.tags.filter(tag => tag !== tagText);
@@ -1926,7 +1951,7 @@ class YouTubeBatchManager {
   }
 
   async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<void> {
-    const video = this.state.allVideos.find(v => v.id === videoId);
+    const video = this.getVideo(videoId);
     if (!video) return;
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
@@ -2113,7 +2138,7 @@ class YouTubeBatchManager {
         }
 
         if (formData.tags && formData.tags.length > 0) {
-          const video = this.state.allVideos.find(v => v.id === videoId);
+          const video = this.getVideo(videoId);
           if (video) {
             video.tags = [...formData.tags];
             this.renderTagsContainer(videoId);
