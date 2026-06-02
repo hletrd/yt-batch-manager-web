@@ -125,6 +125,24 @@ class YouTubeBatchManager {
     }
   }
 
+  private parseDurationToSeconds(isoDuration?: string): number {
+    if (!isoDuration) return 0;
+    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    const hours = parseInt(match[1] || '0');
+    const minutes = parseInt(match[2] || '0');
+    const seconds = parseInt(match[3] || '0');
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  // The Data API has no official "is this a Short" flag, so this is a heuristic:
+  // a video 3 minutes or shorter (the current Shorts length limit) is treated as
+  // a likely Short. It can have false positives for short regular videos.
+  private isLikelyShort(video: VideoData): boolean {
+    const seconds = this.parseDurationToSeconds(video.duration);
+    return seconds > 0 && seconds <= 180;
+  }
+
   private formatNumber(num?: string): string {
     if (!num) return '0';
     const number = parseInt(num);
@@ -391,6 +409,7 @@ class YouTubeBatchManager {
               <div class="video-published">
                 <span class="video-published-text">Published</span> ${video.published_at.substring(0, 10)}
                 ${video.duration ? `<span class="video-duration">${this.formatDuration(video.duration)}</span>` : ''}
+                ${this.isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge" style="background:#ff0033;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-left:6px;">Short</span>` : ''}
               </div>
               <div class="video-metadata">
                 <div class="privacy-control">

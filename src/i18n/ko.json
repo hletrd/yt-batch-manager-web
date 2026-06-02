@@ -85,7 +85,8 @@
     "termsOfService": "이용약관"
   },
   "video": {
-    "syntheticContent": "변경되거나 합성된 콘텐츠 (AI)"
+    "syntheticContent": "변경되거나 합성된 콘텐츠 (AI)",
+    "shortBadge": "쇼츠"
   },
   "sorting": {
     "dateNewestFirst": "날짜 (최신순)",

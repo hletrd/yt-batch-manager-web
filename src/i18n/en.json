@@ -85,7 +85,8 @@
     "termsOfService": "Terms of Service"
   },
   "video": {
-    "syntheticContent": "Altered or synthetic content"
+    "syntheticContent": "Altered or synthetic content",
+    "shortBadge": "Short"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",
