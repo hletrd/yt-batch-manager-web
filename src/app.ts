@@ -242,7 +242,7 @@ class YouTubeBatchManager {
       if (!isAuthenticated) {
         refreshBtn.style.opacity = '0.5';
         refreshBtn.style.cursor = 'default';
-        refreshBtn.title = 'Authentication required';
+        refreshBtn.title = rendererI18n.t('tooltips.authRequired');
       } else {
         refreshBtn.style.opacity = '1';
         refreshBtn.style.cursor = 'pointer';
@@ -255,7 +255,7 @@ class YouTubeBatchManager {
         logoutBtn.style.opacity = '0.5';
         logoutBtn.style.cursor = 'default';
         logoutBtn.style.pointerEvents = 'none';
-        logoutBtn.title = 'Authentication required';
+        logoutBtn.title = rendererI18n.t('tooltips.authRequired');
       } else {
         logoutBtn.style.opacity = '1';
         logoutBtn.style.cursor = 'pointer';
@@ -2098,7 +2098,7 @@ class YouTubeBatchManager {
 
   async refreshVideos(): Promise<void> {
     if (!this.youtubeAPI.isLoggedIn()) {
-      this.showStatus('Authentication required to refresh videos', 'error');
+      this.showStatus(rendererI18n.t('status.authRequiredToRefresh'), 'error');
       return;
     }
     console.log('Force refreshing videos from YouTube API...');

@@ -140,10 +140,14 @@
     "failedToLoadCredentials": "Failed to load credentials",
     "failedToParseCredentialsFile": "Failed to parse credentials file",
     "temporaryChangesSaved": "Unsaved changes have been temporarily saved",
-    "temporaryChangesRestored": "Restored unsaved changes for {count} video(s)"
+    "temporaryChangesRestored": "Restored unsaved changes for {count} video(s)",
+    "authRequiredToRefresh": "Authentication required to refresh videos"
   },
   "credentials": {
     "notFound": "No Credentials Found",
     "notFoundDescription": "Please check the credentials.json file in the src/ directory."
+  },
+  "tooltips": {
+    "authRequired": "Authentication required"
   }
 }
