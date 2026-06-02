@@ -519,7 +519,7 @@ class YouTubeBatchManager {
               ${(video.tags || []).map(tag => `
                 <div class="tag-chip">
                   <span class="tag-text">${this.escapeHtml(tag)}</span>
-                  <button type="button" class="tag-remove" onclick="app.removeTag('${video.id}', '${this.escapeHtml(tag)}')" aria-label="Remove tag">×</button>
+                  <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(video.id)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
                 </div>
               `).join('')}
               <input
@@ -850,6 +850,19 @@ class YouTubeBatchManager {
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
 
+      // Delegated tag-remove handling. The tag value is read from data-* rather
+      // than interpolated into an inline handler, so a tag containing quotes or
+      // other JS-significant characters cannot inject script (see escapeHtmlAttribute).
+      const removeBtn = target.closest('.tag-remove') as HTMLElement | null;
+      if (removeBtn) {
+        const videoId = removeBtn.getAttribute('data-video-id');
+        const tag = removeBtn.getAttribute('data-tag');
+        if (videoId !== null && tag !== null) {
+          this.removeTag(videoId, tag);
+        }
+        return;
+      }
+
       if (target.closest('.dropdown-content')) {
         document.querySelectorAll('.dropdown').forEach(dropdown => {
           dropdown.classList.remove('show');
@@ -919,6 +932,8 @@ class YouTubeBatchManager {
 
   private async initializeApp(): Promise<void> {
     await rendererI18n.waitForInitialization();
+    // Reflect the detected UI language on <html lang> for assistive tech (WCAG 3.1.1).
+    document.documentElement.lang = rendererI18n.getCurrentLanguage();
     rendererI18n.updatePageTexts();
 
 
@@ -1241,6 +1256,21 @@ class YouTubeBatchManager {
     return div.innerHTML;
   }
 
+  // Escape a value for safe use inside a double-quoted HTML attribute. Unlike
+  // escapeHtml (which targets text-node content), this also encodes the double
+  // quote so the value cannot terminate the attribute, and is used for data-*
+  // attributes that carry user-controlled strings (e.g. tag values). Tag values
+  // are NEVER interpolated into inline JS handlers anymore; they are read back
+  // from data-* via delegated listeners.
+  private escapeHtmlAttribute(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   async saveAllChanges(): Promise<void> {
     if (this.state.changedVideos.size === 0) {
       this.showStatus(rendererI18n.t('status.noChangesToSave'), 'info');
@@ -1412,6 +1442,23 @@ class YouTubeBatchManager {
       this.showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
       return;
     }
+
+    // Defense-in-depth: coerce/sanitize each imported record's fields rather than
+    // trusting the file shape. Tags must be an array of strings; privacy_status
+    // is constrained to the known set; text fields are coerced to strings;
+    // contains_synthetic_media to a boolean. This bounds what later flows into
+    // the DOM and into YouTube update requests.
+    const allowedPrivacy = new Set(['private', 'unlisted', 'public']);
+    videoData = videoData.map((video: VideoData) => ({
+      ...video,
+      title: typeof video.title === 'string' ? video.title : String(video.title ?? ''),
+      description: typeof video.description === 'string' ? video.description : String(video.description ?? ''),
+      privacy_status: allowedPrivacy.has(video.privacy_status) ? video.privacy_status : 'private',
+      category_id: video.category_id != null ? String(video.category_id) : '22',
+      tags: Array.isArray(video.tags) ? video.tags.filter((t): t is string => typeof t === 'string') : [],
+      defaultAudioLanguage: typeof video.defaultAudioLanguage === 'string' ? video.defaultAudioLanguage : undefined,
+      contains_synthetic_media: video.contains_synthetic_media === true
+    }));
 
     // Preserve any existing YouTube baseline so we can detect which imported
     // videos actually differ from what is live on YouTube. A plain file-only
@@ -1823,7 +1870,7 @@ class YouTubeBatchManager {
     const tagsHtml = (video.tags || []).map(tag => `
       <div class="tag-chip">
         <span class="tag-text">${this.escapeHtml(tag)}</span>
-        <button type="button" class="tag-remove" onclick="app.removeTag('${videoId}', '${this.escapeHtml(tag)}')" aria-label="Remove tag">×</button>
+        <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(videoId)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
       </div>
     `).join('');
 
@@ -1891,17 +1938,21 @@ class YouTubeBatchManager {
 
       const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
 
+      // Read the live element value when the element exists, falling back to the
+      // stored value only when the element is missing. Using `el?.value || stored`
+      // would treat an intentionally-cleared field (empty string) as "unchanged"
+      // and silently revert it, so an emptied description was never saved.
       const updates = {
-        title: titleEl?.value || video.title,
-        description: descriptionEl?.value || video.description,
-        privacy_status: privacyEl?.value || video.privacy_status,
-        category_id: categoryEl?.value || video.category_id,
-        defaultAudioLanguage: languageEl?.value || video.defaultAudioLanguage,
+        title: titleEl ? titleEl.value : video.title,
+        description: descriptionEl ? descriptionEl.value : video.description,
+        privacy_status: privacyEl ? privacyEl.value : video.privacy_status,
+        category_id: categoryEl ? categoryEl.value : video.category_id,
+        // Empty string is the "Auto" option and must be allowed to clear a set language.
+        defaultAudioLanguage: languageEl ? languageEl.value : (video.defaultAudioLanguage || ''),
         tags: video.tags || [],
         contains_synthetic_media: syntheticEl ? syntheticEl.checked : (video.contains_synthetic_media ?? false),
         // Re-send the other mutable status fields so videos.update doesn't wipe
         // them (it deletes any status property omitted from the request).
-        made_for_kids: video.made_for_kids,
         license: video.license,
         embeddable: video.embeddable,
         public_stats_viewable: video.public_stats_viewable
