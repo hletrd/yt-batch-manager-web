@@ -407,16 +407,16 @@ class YouTubeBatchManager {
               </a>
               <div class="video-title">${this.escapeHtml(video.title)}</div>
               <div class="video-published">
-                <span class="video-published-text">Published</span> ${video.published_at.substring(0, 10)}
+                <span class="video-published-text" data-i18n="app.published">Published</span> ${video.published_at.substring(0, 10)}
                 ${video.duration ? `<span class="video-duration">${this.formatDuration(video.duration)}</span>` : ''}
-                ${this.isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge" style="background:#ff0033;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-left:6px;">Short</span>` : ''}
+                ${this.isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge">Short</span>` : ''}
               </div>
               <div class="video-metadata">
                 <div class="privacy-control">
                   <select class="privacy-select" id="privacy-${video.id}" onchange="app.handlePrivacyChange('${video.id}')">
-                    <option value="private" ${video.privacy_status === 'private' ? 'selected' : ''}>Private</option>
-                    <option value="unlisted" ${video.privacy_status === 'unlisted' ? 'selected' : ''}>Unlisted</option>
-                    <option value="public" ${video.privacy_status === 'public' ? 'selected' : ''}>Public</option>
+                    <option value="private" ${video.privacy_status === 'private' ? 'selected' : ''} data-i18n="privacy.private">Private</option>
+                    <option value="unlisted" ${video.privacy_status === 'unlisted' ? 'selected' : ''} data-i18n="privacy.unlisted">Unlisted</option>
+                    <option value="public" ${video.privacy_status === 'public' ? 'selected' : ''} data-i18n="privacy.public">Public</option>
                   </select>
                 </div>
                 <div class="category-control">
@@ -484,7 +484,7 @@ class YouTubeBatchManager {
           </div>
 
           <div class="form-group">
-            <label for="title-${video.id}">Title</label>
+            <label for="title-${video.id}" data-i18n="form.title">Title</label>
             <div class="title-counter" id="title-counter-${video.id}">${video.title.length}/100</div>
             <input
               type="text"
@@ -496,7 +496,7 @@ class YouTubeBatchManager {
           </div>
 
           <div class="form-group">
-            <label for="description-${video.id}">Description</label>
+            <label for="description-${video.id}" data-i18n="form.description">Description</label>
             <div class="description-counter" id="description-counter-${video.id}">${video.description.length}/5000</div>
             <textarea
               class="form-control"
@@ -506,7 +506,7 @@ class YouTubeBatchManager {
           </div>
 
           <div class="form-group">
-            <label for="tags-container-${video.id}">Tags</label>
+            <label for="tags-container-${video.id}" data-i18n="form.tags">Tags</label>
             <button type="button" class="tag-copy-btn" onclick="app.copyTags('${video.id}')" data-i18n-title="form.copyTags" title="Copy tags" aria-label="Copy tags">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -881,6 +881,7 @@ class YouTubeBatchManager {
         if (mobileMenu && !mobileMenu.classList.contains('hide')) {
           mobileMenu.classList.add('hide');
           burgerMenu?.classList.remove('active');
+          burgerMenu?.setAttribute('aria-expanded', 'false');
         }
       }
     });
@@ -903,9 +904,11 @@ class YouTubeBatchManager {
       if (window.innerWidth > 768) {
         mobileMenu?.classList.remove('hide');
         burgerMenu?.classList.remove('active');
+          burgerMenu?.setAttribute('aria-expanded', 'false');
       } else {
         mobileMenu?.classList.add('hide');
         burgerMenu?.classList.remove('active');
+          burgerMenu?.setAttribute('aria-expanded', 'false');
       }
     });
 
@@ -916,6 +919,7 @@ class YouTubeBatchManager {
         if (mobileMenu && !mobileMenu.classList.contains('hide')) {
           mobileMenu.classList.add('hide');
           burgerMenu?.classList.remove('active');
+          burgerMenu?.setAttribute('aria-expanded', 'false');
         }
         document.querySelectorAll('.dropdown').forEach(dropdown => {
           dropdown.classList.remove('show');
@@ -1013,8 +1017,8 @@ class YouTubeBatchManager {
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
             </div>
-            <h3>No Credentials Found</h3>
-            <p>Please ensure that credentials.json is available at the root of your web server.</p>
+            <h3 data-i18n="credentials.notFound">No Credentials Found</h3>
+            <p data-i18n="credentials.notFoundDescription">Please ensure that credentials.json is available at the root of your web server.</p>
           </div>
         `;
       }
@@ -1095,7 +1099,7 @@ class YouTubeBatchManager {
     const options = Object.values(this.videoCategories).map(category =>
       `<option value="${category.id}" ${category.id === selectedCategoryId ? 'selected' : ''}>${category.title}</option>`
     );
-    return `<option value="">Select Category</option>${options.join('')}`;
+    return `<option value="">${this.escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}`;
   }
 
   private async loadI18nLanguages(): Promise<void> {
@@ -1123,7 +1127,7 @@ class YouTubeBatchManager {
     const options = Object.values(this.i18nLanguages).map(language =>
       `<option value="${language.id}" ${language.id === selectedLanguageId ? 'selected' : ''}>${language.name}</option>`
     );
-    return `<option value="">Auto</option>${options.join('')}`;
+    return `<option value="">${this.escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
   }
 
   toggleMobileMenu(): void {
@@ -1135,6 +1139,9 @@ class YouTubeBatchManager {
 
       if (burgerMenu) {
         burgerMenu.classList.toggle('active');
+        // Reflect the open/closed state for assistive tech. The menu is open
+        // when it does NOT carry the `hide` class.
+        burgerMenu.setAttribute('aria-expanded', String(!menu.classList.contains('hide')));
       }
     }
   }

@@ -57,15 +57,9 @@
     "description": "Description",
     "tags": "Tags",
     "tagsPlaceholder": "Add tags (comma-separated)",
-    "copyTags": "Copy tags"
-  },
-  "video": {
-    "title": "Title",
-    "description": "Description",
-    "privacy": "Privacy Status",
-    "tags": "Tags",
-    "saveChanges": "Save Changes",
-    "views": "views"
+    "copyTags": "Copy tags",
+    "selectCategory": "Select Category",
+    "autoLanguage": "Auto"
   },
   "buttons": {
     "updateVideoInfo": "Update Video",
@@ -85,6 +79,9 @@
     "termsOfService": "Terms of Service"
   },
   "video": {
+    "privacy": "Privacy Status",
+    "saveChanges": "Save Changes",
+    "views": "views",
     "syntheticContent": "Altered or synthetic content",
     "shortBadge": "Short"
   },
