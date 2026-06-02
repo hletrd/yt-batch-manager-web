@@ -187,6 +187,7 @@ class YouTubeBatchManager {
 
     if (overlay) {
       overlay.style.display = 'flex';
+      overlay.setAttribute('aria-busy', 'true');
       setTimeout(() => {
         overlay.classList.add('show');
       }, 10);
@@ -205,6 +206,7 @@ class YouTubeBatchManager {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
       overlay.classList.remove('show');
+      overlay.setAttribute('aria-busy', 'false');
       setTimeout(() => {
         overlay.style.display = 'none';
       }, 300);
@@ -507,7 +509,7 @@ class YouTubeBatchManager {
             <div class="tags-container" id="tags-container-${video.id}" onclick="app.focusTagInput('${video.id}')">
               ${(video.tags || []).map(tag => `
                 <div class="tag-chip">
-                  <span class="tag-text">${this.escapeHtml(tag)}</span>
+                  <span class="tag-text" title="${this.escapeHtmlAttribute(tag)}">${this.escapeHtml(tag)}</span>
                   <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(video.id)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
                 </div>
               `).join('')}
@@ -533,22 +535,26 @@ class YouTubeBatchManager {
       `;
 
       videoList.insertAdjacentHTML('beforeend', videoHTML);
+    }
 
-      setTimeout(() => {
-        const textarea = document.getElementById(`description-${video.id}`) as HTMLTextAreaElement;
+    // Size textareas and refresh counters for the whole inserted batch in a single
+    // animation frame instead of one setTimeout per video, avoiding a burst of N
+    // timers that each force layout reads. The i18n sweep runs once in the same
+    // frame (it queries the entire document per call).
+    const insertedIds = videosToAdd.map(v => v.id);
+    requestAnimationFrame(() => {
+      for (const id of insertedIds) {
+        const textarea = document.getElementById(`description-${id}`) as HTMLTextAreaElement;
         if (textarea) {
           textarea.style.height = 'auto';
           this.autoResizeTextarea(textarea);
         }
-        this.updateTitleCounter(video.id);
-        this.updateDescriptionCounter(video.id);
-        this.updateTagsCounter(video.id);
-      }, 10);
-    }
-
-    // Run the i18n sweep once for the whole batch rather than once per inserted
-    // video (it queries the entire document each call).
-    setTimeout(() => rendererI18n.updatePageTexts(), 10);
+        this.updateTitleCounter(id);
+        this.updateDescriptionCounter(id);
+        this.updateTagsCounter(id);
+      }
+      rendererI18n.updatePageTexts();
+    });
 
     this.state.displayedVideos = this.state.displayedVideos.concat(videosToAdd);
     this.state.currentPage++;
@@ -1169,15 +1175,23 @@ class YouTubeBatchManager {
 
     const sortHint = document.getElementById('current-sort');
     if (sortHint) {
-      const sortLabels: Record<string, string> = {
-        'date-desc': 'Latest First',
-        'date-asc': 'Oldest First',
-        'title-asc': 'Title A-Z',
-        'title-desc': 'Title Z-A',
-        'views-desc': 'Most Views',
-        'views-asc': 'Least Views'
+      // Map each sort type to an i18n key and update both the data-i18n attribute
+      // and the text so the label stays localized (and re-localizable on a later
+      // updatePageTexts sweep) instead of being overwritten with hardcoded English.
+      const sortKeys: Record<string, string> = {
+        'date-desc': 'sorting.dateNewestFirst',
+        'date-asc': 'sorting.dateOldestFirst',
+        'title-asc': 'sorting.titleAZ',
+        'title-desc': 'sorting.titleZA'
       };
-      sortHint.textContent = sortLabels[sortType] || sortType;
+      const key = sortKeys[sortType];
+      if (key) {
+        sortHint.setAttribute('data-i18n', key);
+        sortHint.textContent = rendererI18n.t(key);
+      } else {
+        sortHint.removeAttribute('data-i18n');
+        sortHint.textContent = sortType;
+      }
     }
   }
 
@@ -1931,7 +1945,7 @@ class YouTubeBatchManager {
 
     const tagsHtml = (video.tags || []).map(tag => `
       <div class="tag-chip">
-        <span class="tag-text">${this.escapeHtml(tag)}</span>
+        <span class="tag-text" title="${this.escapeHtmlAttribute(tag)}">${this.escapeHtml(tag)}</span>
         <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(videoId)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
       </div>
     `).join('');
@@ -1947,7 +1961,7 @@ class YouTubeBatchManager {
         id="tag-input-${videoId}"
         placeholder="${placeholder}"
         onkeydown="app.handleTagKeydown(event, '${videoId}')"
-        onchange="app.handleTagChange('${videoId}')"
+        oninput="app.handleTagChange('${videoId}')"
         onpaste="app.handleTagPaste(event, '${videoId}')"
         onblur="app.handleTagBlur(event, '${videoId}')"
       />
@@ -2190,7 +2204,10 @@ class YouTubeBatchManager {
           if (video) {
             video.tags = [...formData.tags];
             this.renderTagsContainer(videoId);
-            this.handleTagChange(videoId);
+            this.updateTagsCounter(videoId);
+            // Re-evaluate change state directly. handleTagChange only inspects the
+            // (now empty) tag input and would not mark a tags-only restore as changed.
+            this.checkForChanges(videoId);
           }
         }
 
