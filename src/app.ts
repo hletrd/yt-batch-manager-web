@@ -88,15 +88,28 @@ class YouTubeBatchManager {
     return this.videoIndex.get(videoId);
   }
 
+  // Parse an ISO-8601 duration (e.g. P1DT2H3M4S) into days/hours/minutes/seconds.
+  // Long uploads/archives can exceed 24h and carry a days (D) component, which
+  // the previous PT-only regex silently dropped.
+  private parseIsoDuration(isoDuration?: string): { days: number; hours: number; minutes: number; seconds: number } | null {
+    if (!isoDuration) return null;
+    const match = isoDuration.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/);
+    if (!match) return null;
+    return {
+      days: parseInt(match[1] || '0', 10),
+      hours: parseInt(match[2] || '0', 10),
+      minutes: parseInt(match[3] || '0', 10),
+      seconds: parseInt(match[4] || '0', 10)
+    };
+  }
+
   private formatDuration(isoDuration?: string): string {
-    if (!isoDuration) return '';
+    const parsed = this.parseIsoDuration(isoDuration);
+    if (!parsed) return '';
 
-    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) return '';
-
-    const hours = parseInt(match[1] || '0');
-    const minutes = parseInt(match[2] || '0');
-    const seconds = parseInt(match[3] || '0');
+    // Roll any days into the hours component for a compact H:MM:SS display.
+    const hours = parsed.days * 24 + parsed.hours;
+    const { minutes, seconds } = parsed;
 
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -106,13 +119,9 @@ class YouTubeBatchManager {
   }
 
   private parseDurationToSeconds(isoDuration?: string): number {
-    if (!isoDuration) return 0;
-    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) return 0;
-    const hours = parseInt(match[1] || '0');
-    const minutes = parseInt(match[2] || '0');
-    const seconds = parseInt(match[3] || '0');
-    return hours * 3600 + minutes * 60 + seconds;
+    const parsed = this.parseIsoDuration(isoDuration);
+    if (!parsed) return 0;
+    return parsed.days * 86400 + parsed.hours * 3600 + parsed.minutes * 60 + parsed.seconds;
   }
 
   // The Data API has no official "is this a Short" flag, so this is a heuristic:
@@ -494,7 +503,7 @@ class YouTubeBatchManager {
               </svg>
               <span data-i18n="form.copyTags">Copy tags</span>
             </button>
-            <div class="tags-counter" id="tags-counter-${video.id}">${(video.tags || []).length}/500</div>
+            <div class="tags-counter" id="tags-counter-${video.id}">${(video.tags || []).reduce((s, t) => s + t.length, 0)}/500</div>
             <div class="tags-container" id="tags-container-${video.id}" onclick="app.focusTagInput('${video.id}')">
               ${(video.tags || []).map(tag => `
                 <div class="tag-chip">
@@ -1170,21 +1179,29 @@ class YouTubeBatchManager {
     }
   }
 
+  // Parse a published_at date to epoch ms, treating missing/invalid dates as 0
+  // (oldest). Without this an empty published_at (e.g. from an imported backup)
+  // yields NaN, and NaN comparisons make the sort order non-deterministic.
+  private publishedTime(value: string): number {
+    const t = new Date(value).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  }
+
   private sortAllVideos(): void {
     this.state.allVideos.sort((a, b) => {
       switch (this.state.currentSort) {
         case 'date-desc':
-          return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+          return this.publishedTime(b.published_at) - this.publishedTime(a.published_at);
         case 'date-asc':
-          return new Date(a.published_at).getTime() - new Date(b.published_at).getTime();
+          return this.publishedTime(a.published_at) - this.publishedTime(b.published_at);
         case 'title-asc':
           return a.title.localeCompare(b.title);
         case 'title-desc':
           return b.title.localeCompare(a.title);
         case 'views-desc':
-          return parseInt(b.statistics?.view_count || '0') - parseInt(a.statistics?.view_count || '0');
+          return parseInt(b.statistics?.view_count || '0', 10) - parseInt(a.statistics?.view_count || '0', 10);
         case 'views-asc':
-          return parseInt(a.statistics?.view_count || '0') - parseInt(b.statistics?.view_count || '0');
+          return parseInt(a.statistics?.view_count || '0', 10) - parseInt(b.statistics?.view_count || '0', 10);
         default:
           return 0;
       }
@@ -1655,9 +1672,13 @@ class YouTubeBatchManager {
     const containerEl = document.getElementById(`tags-container-${videoId}`);
     const counterEl = document.getElementById(`tags-counter-${videoId}`);
     if (containerEl && counterEl) {
-      const tagCount = containerEl.querySelectorAll('.tag-chip').length;
-      counterEl.textContent = `${tagCount} tags`;
-      counterEl.className = `tags-counter ${tagCount > 500 ? 'warning' : ''}`;
+      // YouTube limits tags by total character count (~500), not by number of
+      // tags. Count the combined length of all tag texts so the counter and its
+      // warning threshold match the real limit and the initial-render format.
+      const tagTexts = Array.from(containerEl.querySelectorAll('.tag-text'));
+      const usedChars = tagTexts.reduce((sum, el) => sum + (el.textContent || '').length, 0);
+      counterEl.textContent = `${usedChars}/500`;
+      counterEl.className = `tags-counter ${usedChars > 450 ? 'warning' : ''}`;
     }
   }
 
