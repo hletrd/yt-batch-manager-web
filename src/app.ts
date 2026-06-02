@@ -1965,7 +1965,7 @@ class YouTubeBatchManager {
         type="text"
         class="tag-input"
         id="tag-input-${videoId}"
-        placeholder="${placeholder}"
+        placeholder="${this.escapeHtmlAttribute(placeholder)}"
         onkeydown="app.handleTagKeydown(event, '${videoId}')"
         oninput="app.handleTagChange('${videoId}')"
         onpaste="app.handleTagPaste(event, '${videoId}')"
