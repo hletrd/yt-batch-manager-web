@@ -1,6 +1,6 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI } from './youtube-api.js';
-import type { VideoData } from './types.js';
+import type { VideoData, ThumbnailData } from './types.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -581,7 +581,9 @@ class YouTubeBatchManager {
     thumbnailOrder.forEach(key => {
       const thumb = video.thumbnails?.[key];
       if (thumb?.url && sizesMap[key]) {
-        srcsetParts.push(`${thumb.url} ${sizesMap[key]}w`);
+        // Attribute-escape each URL before it enters the srcset attribute so a
+        // crafted (e.g. imported) URL cannot break out and inject a handler.
+        srcsetParts.push(`${this.escapeHtmlAttribute(thumb.url)} ${sizesMap[key]}w`);
       }
     });
 
@@ -590,7 +592,7 @@ class YouTubeBatchManager {
 
     return `
       <img
-        src="${fallbackUrl}"
+        src="${this.escapeHtmlAttribute(fallbackUrl)}"
         ${srcset ? `srcset="${srcset}"` : ''}
         ${srcset ? `sizes="${sizes}"` : ''}
         alt="Video thumbnail"
@@ -1279,6 +1281,35 @@ class YouTubeBatchManager {
       .replace(/'/g, '&#39;');
   }
 
+  // Accept an image URL only if it is a string with a safe scheme (http/https or a
+  // data: image). Anything else (javascript:, attribute-breakout strings, non-strings)
+  // is rejected and the caller falls back to the default thumbnail. Used to bound
+  // attacker-controlled URLs from imported backups before they reach src/srcset.
+  private sanitizeImageUrl(url: unknown): string {
+    if (typeof url !== 'string' || url.length === 0) return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^data:image\//i.test(trimmed)) return trimmed;
+    return '';
+  }
+
+  private sanitizeThumbnailMap(thumbnails: unknown): Record<string, ThumbnailData> {
+    const clean: Record<string, ThumbnailData> = {};
+    if (!thumbnails || typeof thumbnails !== 'object') return clean;
+    for (const [key, value] of Object.entries(thumbnails as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue;
+      const t = value as { url?: unknown; width?: unknown; height?: unknown };
+      const safeUrl = this.sanitizeImageUrl(t.url);
+      if (!safeUrl) continue;
+      clean[key] = {
+        url: safeUrl,
+        width: typeof t.width === 'number' ? t.width : 0,
+        height: typeof t.height === 'number' ? t.height : 0
+      };
+    }
+    return clean;
+  }
+
   async saveAllChanges(): Promise<void> {
     if (this.state.changedVideos.size === 0) {
       this.showStatus(rendererI18n.t('status.noChangesToSave'), 'info');
@@ -1442,11 +1473,19 @@ class YouTubeBatchManager {
       return;
     }
 
-    const isValid = videoData.every(video =>
-      video && video.id && video.title && typeof video.title === 'string'
+    // A YouTube video id is exactly 11 chars from [A-Za-z0-9_-]. The id is later
+    // interpolated into single-quoted JS strings inside inline on* handlers
+    // (renderVideos/renderTagsContainer), so an unconstrained id from an imported
+    // backup is a DOM-XSS sink. Constraining the id to this charset here makes that
+    // interpolation safe and is the primary defense; records with a bad id are
+    // dropped rather than rendered.
+    const validIdPattern = /^[A-Za-z0-9_-]{11}$/;
+    videoData = videoData.filter(video =>
+      video && typeof video.id === 'string' && validIdPattern.test(video.id) &&
+      video.title != null
     );
 
-    if (!isValid) {
+    if (videoData.length === 0) {
       this.showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
       return;
     }
@@ -1465,7 +1504,12 @@ class YouTubeBatchManager {
       category_id: video.category_id != null ? String(video.category_id) : '22',
       tags: Array.isArray(video.tags) ? video.tags.filter((t): t is string => typeof t === 'string') : [],
       defaultAudioLanguage: typeof video.defaultAudioLanguage === 'string' ? video.defaultAudioLanguage : undefined,
-      contains_synthetic_media: video.contains_synthetic_media === true
+      contains_synthetic_media: video.contains_synthetic_media === true,
+      // Thumbnail URLs flow into src/srcset attributes. Keep them only when they
+      // are strings with a safe scheme; non-conforming values are dropped so the
+      // default thumbnail is used (see also escapeHtmlAttribute in the renderer).
+      thumbnail_url: this.sanitizeImageUrl(video.thumbnail_url),
+      thumbnails: this.sanitizeThumbnailMap(video.thumbnails)
     }));
 
     // Preserve any existing YouTube baseline so we can detect which imported
