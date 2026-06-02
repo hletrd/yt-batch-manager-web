@@ -95,20 +95,9 @@ export class YouTubeAPI {
       const expiry = localStorage.getItem('youtube_token_expiry');
       this.refreshToken = localStorage.getItem('youtube_refresh_token');
 
-      console.log('Loading stored token:', {
-        hasToken: !!token,
-        hasExpiry: !!expiry,
-        hasRefreshToken: !!this.refreshToken,
-        tokenLength: token?.length,
-        expiryValue: expiry,
-        currentTime: new Date().getTime(),
-        isValid: token && expiry && new Date().getTime() < parseInt(expiry)
-      });
-
       if (token && expiry && new Date().getTime() < parseInt(expiry)) {
         this.accessToken = token;
         this.isAuthenticated = true;
-        console.log('Stored token loaded and is valid');
       } else {
         // Access token is missing or expired, but keep the refresh token so the
         // session can be restored silently via tryRestoreSession().
@@ -223,15 +212,11 @@ export class YouTubeAPI {
   }
 
     async authenticate(): Promise<{ success: boolean; error?: string }> {
-    console.log('authenticate() called');
-
     if (!this.credentials) {
-      console.log('Waiting for credentials to load...');
       await this.loadCredentials();
     }
 
     if (!this.config.clientId) {
-      console.log('No client ID available');
       return {
         success: false,
         error: 'No credentials available. Please ensure credentials.json is properly configured.'
@@ -239,7 +224,6 @@ export class YouTubeAPI {
     }
 
     if (this.isAuthenticated && this.accessToken) {
-      console.log('Already authenticated');
       return { success: true };
     }
 
@@ -248,37 +232,15 @@ export class YouTubeAPI {
       const code = urlParams.get('code');
       const state = urlParams.get('state');
 
-      console.log('Checking localStorage for oauth_state...');
-      console.log('localStorage contents:', Object.keys(localStorage));
-      console.log('All localStorage items:', {...localStorage});
-
       const storedState = localStorage.getItem('oauth_state');
-      console.log('Retrieved stored state:', storedState);
-
-      console.log('OAuth parameters:', {
-        hasCode: !!code,
-        hasState: !!state,
-        stateMatches: state === storedState,
-        storedState: storedState,
-        receivedState: state,
-        codeLength: code?.length,
-        stateLength: state?.length
-      });
 
       if (code && state && state === storedState) {
-        console.log('Processing OAuth callback');
         return await this.handleOAuthCallback(code, state);
       } else {
-        console.log('Initiating OAuth flow because:');
-        console.log('  - hasCode:', !!code);
-        console.log('  - hasState:', !!state);
-        console.log('  - stateMatches:', state === storedState);
-        console.log('  - storedState:', storedState);
-        console.log('  - receivedState:', state);
-
         if (code && state) {
-          console.log('State validation failed, not redirecting to prevent loop');
-          return { success: false, error: `State validation failed. Expected: ${storedState}, Got: ${state}` };
+          // State mismatch: do not redirect (avoids a redirect loop). Avoid
+          // echoing the raw state values back to the UI.
+          return { success: false, error: 'State validation failed' };
         }
 
         await this.initiateOAuthFlow();
@@ -338,10 +300,15 @@ export class YouTubeAPI {
   }
 
   private generateRandomString(length: number): string {
+    // Use a cryptographically strong RNG for the OAuth `state` (CSRF token)
+    // rather than Math.random(). Bytes are mapped onto the charset; the modulo
+    // bias over a 62-char set is negligible for a CSRF nonce.
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
     let result = '';
     for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+      result += chars.charAt(bytes[i] % chars.length);
     }
     return result;
   }
@@ -508,15 +475,45 @@ export class YouTubeAPI {
     throw new Error('Token was invalid and re-authentication has been triggered. Please try again.');
   }
 
+  /**
+   * Perform an authenticated request and, on a 401, transparently attempt a
+   * single silent token refresh + retry before falling back to re-authentication.
+   *
+   * Previously a successful silent refresh threw "Please retry", but no caller
+   * caught it, so a recoverable 401 surfaced to the user as a hard failure. This
+   * wrapper performs the retry internally so the original request succeeds.
+   *
+   * The Authorization header is injected here from the current access token; do
+   * not set it in `init`. Other headers in `init` are preserved.
+   */
+  private async authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    const buildHeaders = (): Record<string, string> => ({
+      'Content-Type': 'application/json',
+      ...(init.headers as Record<string, string> | undefined),
+      'Authorization': `Bearer ${this.accessToken}`
+    });
+
+    let response = await fetch(url, { ...init, headers: buildHeaders() });
+
+    if (response.status === 401) {
+      // The server rejected the access token (revoked / clock skew). Try one
+      // silent refresh and, if it succeeds, retry the original request once.
+      if (this.refreshToken && await this.refreshAccessToken()) {
+        response = await fetch(url, { ...init, headers: buildHeaders() });
+      }
+
+      if (response.status === 401) {
+        // Refresh unavailable or the retry still failed: clear and re-auth.
+        await this.handleApiResponse(response);
+      }
+    }
+
+    return response;
+  }
+
   private async handleApiResponse(response: Response): Promise<Response> {
     if (response.status === 401) {
-      console.warn('401 Unauthorized - attempting silent token refresh before re-authentication');
-
-      // The server rejected the access token (e.g. revoked or clock skew).
-      // Try a silent refresh first; if it works the caller can simply retry.
-      if (this.refreshToken && await this.refreshAccessToken()) {
-        throw new Error('Token was refreshed. Please retry the request.');
-      }
+      console.warn('401 Unauthorized - re-authentication required');
 
       this.clearStoredToken();
 
@@ -535,29 +532,15 @@ export class YouTubeAPI {
   }
 
   async getChannelInfo(): Promise<any> {
-    console.log('getChannelInfo auth check:', {
-      isAuthenticated: this.isAuthenticated,
-      hasAccessToken: !!this.accessToken,
-      tokenLength: this.accessToken?.length
-    });
-
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
 
     await this.ensureValidToken();
 
-    const response = await fetch(
-      'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await this.authedFetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true'
     );
-
-    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch channel info: ${response.statusText}`);
@@ -567,29 +550,15 @@ export class YouTubeAPI {
   }
 
   async getVideoCategories(): Promise<any> {
-    console.log('getVideoCategories auth check:', {
-      isAuthenticated: this.isAuthenticated,
-      hasAccessToken: !!this.accessToken,
-      tokenLength: this.accessToken?.length
-    });
-
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
 
     await this.ensureValidToken();
 
-    const response = await fetch(
-      'https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US',
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await this.authedFetch(
+      'https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US'
     );
-
-    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch video categories: ${response.statusText}`);
@@ -605,17 +574,9 @@ export class YouTubeAPI {
 
     await this.ensureValidToken();
 
-    const response = await fetch(
-      'https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet',
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await this.authedFetch(
+      'https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet'
     );
-
-    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch i18n languages: ${response.statusText}`);
@@ -650,17 +611,9 @@ export class YouTubeAPI {
         playlistParams.append('pageToken', nextPageToken);
       }
 
-      const playlistResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?${playlistParams.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
+      const playlistResponse = await this.authedFetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?${playlistParams.toString()}`
       );
-
-      await this.handleApiResponse(playlistResponse);
 
       if (!playlistResponse.ok) {
         throw new Error(await this.describeError(playlistResponse, 'Failed to fetch videos'));
@@ -682,17 +635,9 @@ export class YouTubeAPI {
         id: videoIds.join(',')
       });
 
-      const videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?${videosParams.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
+      const videosResponse = await this.authedFetch(
+        `https://www.googleapis.com/youtube/v3/videos?${videosParams.toString()}`
       );
-
-      await this.handleApiResponse(videosResponse);
 
       if (!videosResponse.ok) {
         throw new Error(await this.describeError(videosResponse, 'Failed to fetch video details'));
@@ -750,17 +695,9 @@ export class YouTubeAPI {
   }
 
   private async getUploadsPlaylistId(): Promise<string> {
-    const response = await fetch(
-      'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true',
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    const response = await this.authedFetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true'
     );
-
-    await this.handleApiResponse(response);
 
     if (!response.ok) {
       throw new Error(await this.describeError(response, 'Failed to fetch channel'));
@@ -846,23 +783,19 @@ export class YouTubeAPI {
       if (updates.public_stats_viewable !== undefined) {
         (requestBody.status as any).publicStatsViewable = updates.public_stats_viewable;
       }
-      if (updates.made_for_kids !== undefined) {
-        (requestBody.status as any).selfDeclaredMadeForKids = updates.made_for_kids;
-      }
+      // Intentionally NOT writing selfDeclaredMadeForKids: the read-back field is
+      // the *effective* madeForKids value, not the creator's self-declaration, so
+      // round-tripping it on every save could flip a video's COPPA designation.
+      // The UI does not expose this control; omitting it leaves the existing
+      // self-declaration untouched.
 
-      const response = await fetch(
+      const response = await this.authedFetch(
         'https://www.googleapis.com/youtube/v3/videos?part=snippet,status',
         {
           method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify(requestBody)
         }
       );
-
-      await this.handleApiResponse(response);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -970,8 +903,9 @@ export class YouTubeAPI {
         body: tokenRequestBody
       });
 
-      await this.handleApiResponse(tokenResponse);
-
+      // Note: the token endpoint is not a bearer-authenticated API call, so it
+      // is NOT routed through authedFetch/handleApiResponse; its errors (400 on
+      // bad grant, etc.) are handled explicitly below.
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json().catch(() => ({}));
         const errorMessage = errorData.error_description || errorData.error || 'Token exchange failed';
