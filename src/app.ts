@@ -1097,8 +1097,12 @@ class YouTubeBatchManager {
   }
 
   private generateCategoryOptions(selectedCategoryId: string): string {
+    // Escape the API-sourced id/title before they enter option markup. The data
+    // comes from videoCategories.list (or the fallback map), but escaping keeps
+    // this consistent with the rest of the render path and prevents a title/id
+    // containing &, <, >, or " from breaking the attribute or the option list.
     const options = Object.values(this.videoCategories).map(category =>
-      `<option value="${category.id}" ${category.id === selectedCategoryId ? 'selected' : ''}>${category.title}</option>`
+      `<option value="${this.escapeHtmlAttribute(category.id)}" ${category.id === selectedCategoryId ? 'selected' : ''}>${this.escapeHtml(category.title)}</option>`
     );
     return `<option value="">${this.escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}`;
   }
@@ -1125,8 +1129,11 @@ class YouTubeBatchManager {
   }
 
   private generateLanguageOptions(selectedLanguageId?: string): string {
+    // Escape the API-sourced id/name before they enter option markup (see
+    // generateCategoryOptions). Data is from i18nLanguages.list/fallback, but
+    // escaping keeps the render path consistent and special-char-safe.
     const options = Object.values(this.i18nLanguages).map(language =>
-      `<option value="${language.id}" ${language.id === selectedLanguageId ? 'selected' : ''}>${language.name}</option>`
+      `<option value="${this.escapeHtmlAttribute(language.id)}" ${language.id === selectedLanguageId ? 'selected' : ''}>${this.escapeHtml(language.name)}</option>`
     );
     return `<option value="">${this.escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
   }
