@@ -104,13 +104,10 @@ toolchain).
 - Exit criterion: if backup export stops needing the field, or the UI adds a made-for-kids
   control.
 
-## B16 — Unused `batchUpdateVideos` public method
+## B16 — Unused `batchUpdateVideos` public method — RESOLVED
 - Severity/Confidence: LOW / Low.
-- Citation: `src/youtube-api.ts:784-812`.
-- Reason: pure dead-code removal with no behavior change; deferred to keep the cycle diff
-  focused on security/correctness. Not a correctness/security issue.
-- Exit criterion: remove during the next `youtube-api.ts` refactor, or if it remains
-  unused next cycle, delete it then.
+- Resolution: the dead `batchUpdateVideos` method (no call sites anywhere in the repo)
+  was removed from `src/youtube-api.ts`. No behavior change; tsc/eslint/build all green.
 
 ## B17 — README lacks an import trust-model note
 - Severity/Confidence: INFO / Medium.

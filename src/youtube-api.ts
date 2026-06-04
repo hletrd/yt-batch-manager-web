@@ -824,36 +824,6 @@ export class YouTubeAPI {
     }
   }
 
-  async batchUpdateVideos(updates: Array<{ video_id: string } & Partial<VideoData>>): Promise<{ success: boolean; error?: string; results?: any }> {
-    const results = {
-      successful: [] as Array<{ video_id: string; title: string }>,
-      failed: [] as Array<{ video_id: string; error: string }>
-    };
-
-    for (const update of updates) {
-      const { video_id, ...videoUpdates } = update;
-      const result = await this.updateVideo(video_id, videoUpdates);
-
-      if (result.success) {
-        results.successful.push({
-          video_id,
-          title: videoUpdates.title || 'Unknown'
-        });
-      } else {
-        results.failed.push({
-          video_id,
-          error: result.error || 'Unknown error'
-        });
-      }
-    }
-
-    return {
-      success: results.failed.length === 0,
-      results,
-      error: results.failed.length > 0 ? `${results.failed.length} updates failed` : undefined
-    };
-  }
-
   isLoggedIn(): boolean {
     return this.isAuthenticated && !!this.accessToken && this.isTokenValid();
   }
