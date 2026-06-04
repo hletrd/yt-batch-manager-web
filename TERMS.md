@@ -67,4 +67,4 @@ The Application is open-source software licensed under **GPL-3.0-or-later**. The
 
 ## 10. Contact
 
-For questions about these Terms, please open an issue at <https://github.com/hletrd/yt-batch-manager-web/issues>.
+For questions about these Terms, please open an issue at <https://github.com/hletrd/yt-batch-manager-web/issues> or email [01@0101010101.com](mailto:01@0101010101.com).
