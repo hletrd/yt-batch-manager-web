@@ -496,15 +496,17 @@ class YouTubeBatchManager {
           </div>
 
           <div class="form-group">
-            <label for="tags-container-${video.id}" data-i18n="form.tags">Tags</label>
-            <button type="button" class="tag-copy-btn" onclick="app.copyTags('${video.id}')" data-i18n-title="form.copyTags" title="Copy tags" aria-label="Copy tags">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <span data-i18n="form.copyTags">Copy tags</span>
-            </button>
-            <div class="tags-counter" id="tags-counter-${video.id}">${(video.tags || []).reduce((s, t) => s + t.length, 0)}/500</div>
+            <div class="tags-header">
+              <label for="tags-container-${video.id}" data-i18n="form.tags">Tags</label>
+              <button type="button" class="tag-copy-btn" onclick="app.copyTags('${video.id}')" data-i18n-title="form.copyTags" title="Copy tags" aria-label="Copy tags">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span data-i18n="form.copyTags">Copy tags</span>
+              </button>
+              <div class="tags-counter" id="tags-counter-${video.id}">${(video.tags || []).reduce((s, t) => s + t.length, 0)}/500</div>
+            </div>
             <div class="tags-container" id="tags-container-${video.id}" onclick="app.focusTagInput('${video.id}')">
               ${(video.tags || []).map(tag => `
                 <div class="tag-chip">

@@ -1061,6 +1061,51 @@
       font-weight: 600;
     }
 
+    .tags-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .tags-header label {
+      margin-bottom: 0;
+    }
+
+    .tags-header .tags-counter {
+      margin: 0 0 0 auto;
+      padding: 0;
+    }
+
+    .tag-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 26px;
+      padding: 0 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      line-height: 1;
+      transition: all 0.2s ease;
+    }
+
+    .tag-copy-btn:hover {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    .tag-copy-btn svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+    }
+
     .auth-prompt,
     .no-credentials {
       text-align: center;
