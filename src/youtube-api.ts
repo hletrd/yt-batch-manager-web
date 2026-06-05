@@ -601,7 +601,10 @@ export class YouTubeAPI {
       }
 
       const videosParams = new URLSearchParams({
-        part: 'snippet,status,contentDetails,statistics',
+        // fileDetails (owner-only) carries the encoded width/height used to tell
+        // whether a video is vertical (a Short). It is omitted, not an error,
+        // when unavailable, and does not add to the videos.list quota cost.
+        part: 'snippet,status,contentDetails,statistics,fileDetails',
         id: videoIds.join(',')
       });
 
@@ -646,6 +649,8 @@ export class YouTubeAPI {
           embeddable: item.status?.embeddable,
           public_stats_viewable: item.status?.publicStatsViewable,
           duration: item.contentDetails?.duration,
+          width_pixels: item.fileDetails?.videoStreams?.[0]?.widthPixels,
+          height_pixels: item.fileDetails?.videoStreams?.[0]?.heightPixels,
           upload_status: item.status?.uploadStatus,
           processing_status: item.status?.processingStatus,
           statistics: item.statistics ? {

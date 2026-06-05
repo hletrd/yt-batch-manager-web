@@ -124,11 +124,21 @@ class YouTubeBatchManager {
   }
 
   // The Data API has no official "is this a Short" flag, so this is a heuristic:
-  // a video 3 minutes or shorter (the current Shorts length limit) is treated as
-  // a likely Short. It can have false positives for short regular videos.
+  // a Short is vertical/square AND 3 minutes or shorter (the current Shorts
+  // length limit). Orientation comes from fileDetails (owner-only); a landscape
+  // video is never flagged. When the dimensions are unknown (fileDetails absent,
+  // e.g. a file import) we fall back to the duration test alone.
   private isLikelyShort(video: VideoData): boolean {
     const seconds = this.parseDurationToSeconds(video.duration);
-    return seconds > 0 && seconds <= 180;
+    if (seconds <= 0 || seconds > 180) {
+      return false;
+    }
+    const w = video.width_pixels;
+    const h = video.height_pixels;
+    if (w && h) {
+      return h >= w;
+    }
+    return true;
   }
 
   private formatNumber(num?: string): string {

@@ -25,6 +25,8 @@ export interface VideoData {
   embeddable?: boolean;
   public_stats_viewable?: boolean;
   duration?: string;
+  width_pixels?: number;
+  height_pixels?: number;
   upload_status?: string;
   processing_status?: string;
   processing_progress?: {
