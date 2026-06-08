@@ -604,7 +604,7 @@ export class YouTubeAPI {
         // fileDetails (owner-only) carries the encoded width/height used to tell
         // whether a video is vertical (a Short). It is omitted, not an error,
         // when unavailable, and does not add to the videos.list quota cost.
-        part: 'snippet,status,contentDetails,statistics,fileDetails',
+        part: 'snippet,status,contentDetails,statistics,fileDetails,recordingDetails',
         id: videoIds.join(',')
       });
 
@@ -648,6 +648,7 @@ export class YouTubeAPI {
           license: item.status?.license,
           embeddable: item.status?.embeddable,
           public_stats_viewable: item.status?.publicStatsViewable,
+          recording_date: item.recordingDetails?.recordingDate?.substring(0, 10),
           duration: item.contentDetails?.duration,
           width_pixels: item.fileDetails?.videoStreams?.[0]?.widthPixels,
           height_pixels: item.fileDetails?.videoStreams?.[0]?.heightPixels,
@@ -807,8 +808,19 @@ export class YouTubeAPI {
       // The UI does not expose this control; omitting it leaves the existing
       // self-declaration untouched.
 
+      const parts = ['snippet', 'status'];
+      if (updates.recording_date !== undefined) {
+        // recordingDate is ISO 8601; YouTube keeps only the date portion. An
+        // empty value clears it. recordingDetails is added to the part only when
+        // we manage it, so videos.update never wipes an untouched recordingDate.
+        (requestBody as any).recordingDetails = updates.recording_date
+          ? { recordingDate: `${updates.recording_date}T00:00:00.000Z` }
+          : {};
+        parts.push('recordingDetails');
+      }
+
       const response = await this.authedFetch(
-        'https://www.googleapis.com/youtube/v3/videos?part=snippet,status',
+        `https://www.googleapis.com/youtube/v3/videos?part=${parts.join(',')}`,
         {
           method: 'PUT',
           body: JSON.stringify(requestBody)

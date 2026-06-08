@@ -295,13 +295,14 @@ class YouTubeBatchManager {
     }
   }
 
-  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean): boolean {
+  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string): boolean {
     const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
     const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
     const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
     const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
     const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
     const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
+    const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement;
 
     const currentTags = this.getCurrentTags(videoId);
     const originalTags = this.getOriginalTags(videoId);
@@ -313,6 +314,7 @@ class YouTubeBatchManager {
       categoryEl?.value !== savedCategoryId ||
       languageEl?.value !== (savedDefaultAudioLanguage || '') ||
       (syntheticEl ? syntheticEl.checked : false) !== (savedContainsSyntheticMedia || false) ||
+      (recordingDateEl ? recordingDateEl.value : '') !== (savedRecordingDate || '') ||
       !this.arraysEqual(currentTags, originalTags)
     );
   }
@@ -431,6 +433,10 @@ class YouTubeBatchManager {
                   <select class="language-select" id="language-${video.id}" onchange="app.handleLanguageChange('${video.id}')">
                     ${this.generateLanguageOptions(video.defaultAudioLanguage)}
                   </select>
+                </div>
+                <div class="recording-date-control">
+                  <label for="recording-date-${video.id}" data-i18n="video.recordingDate">Recording date</label>
+                  <input type="date" class="recording-date-input" id="recording-date-${video.id}" value="${this.escapeHtmlAttribute(video.recording_date || '')}" onchange="app.handleRecordingDateChange('${video.id}')">
                 </div>
                 <div class="synthetic-control">
                   <label class="synthetic-label">
@@ -1796,6 +1802,10 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  handleRecordingDateChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
   private checkForChanges(videoId: string): void {
     const video = this.getVideo(videoId);
     const original = this.originalVideosState.get(videoId);
@@ -1811,7 +1821,8 @@ class YouTubeBatchManager {
       original.privacy_status,
       original.category_id,
       original.defaultAudioLanguage,
-      original.contains_synthetic_media
+      original.contains_synthetic_media,
+      original.recording_date
     );
 
     if (hasChanges) {
@@ -1844,6 +1855,7 @@ class YouTubeBatchManager {
       (video.category_id || '') !== (baseline.category_id || '') ||
       (video.defaultAudioLanguage || '') !== (baseline.defaultAudioLanguage || '') ||
       (video.contains_synthetic_media || false) !== (baseline.contains_synthetic_media || false) ||
+      (video.recording_date || '') !== (baseline.recording_date || '') ||
       !this.arraysEqual(video.tags || [], baseline.tags || [])
     );
   }
@@ -2070,7 +2082,8 @@ class YouTubeBatchManager {
         // them (it deletes any status property omitted from the request).
         license: video.license,
         embeddable: video.embeddable,
-        public_stats_viewable: video.public_stats_viewable
+        public_stats_viewable: video.public_stats_viewable,
+        recording_date: ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || '')
       };
 
       const result = await this.youtubeAPI.updateVideo(videoId, updates);

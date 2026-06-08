@@ -83,7 +83,8 @@
     "saveChanges": "Save Changes",
     "views": "views",
     "syntheticContent": "Altered or synthetic content",
-    "shortBadge": "Short"
+    "shortBadge": "Short",
+    "recordingDate": "Recording date"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",
