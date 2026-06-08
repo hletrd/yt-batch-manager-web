@@ -601,10 +601,11 @@ export class YouTubeAPI {
       }
 
       const videosParams = new URLSearchParams({
-        // fileDetails (owner-only) carries the encoded width/height used to tell
-        // whether a video is vertical (a Short). It is omitted, not an error,
-        // when unavailable, and does not add to the videos.list quota cost.
-        part: 'snippet,status,contentDetails,statistics,fileDetails,recordingDetails',
+        // NOTE: fileDetails is intentionally NOT requested here. It is a
+        // restricted part and requesting it inline 403s the entire videos.list
+        // call when any video in the batch is not accessible for it, which broke
+        // loading. Dimensions for Shorts detection are fetched separately below.
+        part: 'snippet,status,contentDetails,statistics,recordingDetails',
         id: videoIds.join(',')
       });
 
@@ -650,8 +651,6 @@ export class YouTubeAPI {
           public_stats_viewable: item.status?.publicStatsViewable,
           recording_date: item.recordingDetails?.recordingDate?.substring(0, 10),
           duration: item.contentDetails?.duration,
-          width_pixels: item.fileDetails?.videoStreams?.[0]?.widthPixels,
-          height_pixels: item.fileDetails?.videoStreams?.[0]?.heightPixels,
           upload_status: item.status?.uploadStatus,
           processing_status: item.status?.processingStatus,
           statistics: item.statistics ? {
@@ -665,9 +664,47 @@ export class YouTubeAPI {
         videos.push(video);
       }
 
+      // Best-effort: enrich this page with encoded dimensions for Shorts
+      // (vertical) detection via a SEPARATE fileDetails call so a restricted
+      // video can never 403 the main load.
+      await this.applyVideoDimensions(videoIds, videos);
+
     } while (nextPageToken && videos.length < maxResults);
 
     return videos;
+  }
+
+  // fileDetails is owner-only and restricted: requesting it 403s the whole
+  // request if any video in the batch is inaccessible for it. Fetch it on its
+  // own and swallow any failure — dimensions are only used to tell vertical
+  // Shorts apart, and the heuristic falls back to duration when they are absent.
+  private async applyVideoDimensions(videoIds: string[], videos: VideoData[]): Promise<void> {
+    try {
+      const params = new URLSearchParams({ part: 'fileDetails', id: videoIds.join(',') });
+      const response = await this.authedFetch(
+        `https://www.googleapis.com/youtube/v3/videos?${params.toString()}`
+      );
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      const dims = new Map<string, { w?: number; h?: number }>();
+      for (const item of data.items || []) {
+        const stream = item.fileDetails?.videoStreams?.[0];
+        if (stream) {
+          dims.set(item.id, { w: stream.widthPixels, h: stream.heightPixels });
+        }
+      }
+      for (const video of videos) {
+        const d = dims.get(video.id);
+        if (d) {
+          video.width_pixels = d.w;
+          video.height_pixels = d.h;
+        }
+      }
+    } catch {
+      // Best-effort: dimensions stay unknown; Shorts badge falls back to duration.
+    }
   }
 
   private async getUploadsPlaylistId(): Promise<string> {
