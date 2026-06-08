@@ -25,6 +25,8 @@ export interface VideoData {
   embeddable?: boolean;
   public_stats_viewable?: boolean;
   recording_date?: string;
+  latitude?: number;
+  longitude?: number;
   duration?: string;
   width_pixels?: number;
   height_pixels?: number;

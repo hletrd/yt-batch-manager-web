@@ -84,7 +84,8 @@
     "views": "views",
     "syntheticContent": "Altered or synthetic content",
     "shortBadge": "Short",
-    "recordingDate": "Recording date"
+    "recordingDate": "Recording date",
+    "recordingLocation": "Location"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",

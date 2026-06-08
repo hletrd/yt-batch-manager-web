@@ -84,7 +84,8 @@
     "views": "조회수",
     "syntheticContent": "변경되거나 합성된 콘텐츠 (AI)",
     "shortBadge": "쇼츠",
-    "recordingDate": "촬영일"
+    "recordingDate": "촬영일",
+    "recordingLocation": "촬영 장소"
   },
   "sorting": {
     "dateNewestFirst": "날짜 (최신순)",

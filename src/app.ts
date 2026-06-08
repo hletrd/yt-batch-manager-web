@@ -295,7 +295,7 @@ class YouTubeBatchManager {
     }
   }
 
-  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string): boolean {
+  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string, savedLatitude?: number, savedLongitude?: number): boolean {
     const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
     const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
     const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
@@ -303,6 +303,8 @@ class YouTubeBatchManager {
     const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
     const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
     const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement;
+    const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement;
+    const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement;
 
     const currentTags = this.getCurrentTags(videoId);
     const originalTags = this.getOriginalTags(videoId);
@@ -315,6 +317,8 @@ class YouTubeBatchManager {
       languageEl?.value !== (savedDefaultAudioLanguage || '') ||
       (syntheticEl ? syntheticEl.checked : false) !== (savedContainsSyntheticMedia || false) ||
       (recordingDateEl ? recordingDateEl.value : '') !== (savedRecordingDate || '') ||
+      (latEl ? latEl.value.trim() : '') !== (savedLatitude != null ? String(savedLatitude) : '') ||
+      (lngEl ? lngEl.value.trim() : '') !== (savedLongitude != null ? String(savedLongitude) : '') ||
       !this.arraysEqual(currentTags, originalTags)
     );
   }
@@ -437,6 +441,11 @@ class YouTubeBatchManager {
                 <div class="recording-date-control">
                   <label for="recording-date-${video.id}" data-i18n="video.recordingDate">Recording date</label>
                   <input type="date" class="recording-date-input" id="recording-date-${video.id}" value="${this.escapeHtmlAttribute(video.recording_date || '')}" onchange="app.handleRecordingDateChange('${video.id}')">
+                </div>
+                <div class="recording-location-control">
+                  <label data-i18n="video.recordingLocation">Location</label>
+                  <input type="number" step="any" class="recording-location-input" id="latitude-${video.id}" placeholder="Lat" value="${typeof video.latitude === 'number' ? video.latitude : ''}" onchange="app.handleRecordingDateChange('${video.id}')">
+                  <input type="number" step="any" class="recording-location-input" id="longitude-${video.id}" placeholder="Lng" value="${typeof video.longitude === 'number' ? video.longitude : ''}" onchange="app.handleRecordingDateChange('${video.id}')">
                 </div>
                 <div class="synthetic-control">
                   <label class="synthetic-label">
@@ -1820,6 +1829,14 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  private parseCoordInput(raw: string | undefined, fallback: number | undefined): number | undefined {
+    if (raw === undefined) return fallback;
+    const trimmed = raw.trim();
+    if (trimmed === '') return undefined;
+    const n = parseFloat(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
   private checkForChanges(videoId: string): void {
     const video = this.getVideo(videoId);
     const original = this.originalVideosState.get(videoId);
@@ -1836,7 +1853,9 @@ class YouTubeBatchManager {
       original.category_id,
       original.defaultAudioLanguage,
       original.contains_synthetic_media,
-      original.recording_date
+      original.recording_date,
+      original.latitude,
+      original.longitude
     );
 
     if (hasChanges) {
@@ -1870,6 +1889,8 @@ class YouTubeBatchManager {
       (video.defaultAudioLanguage || '') !== (baseline.defaultAudioLanguage || '') ||
       (video.contains_synthetic_media || false) !== (baseline.contains_synthetic_media || false) ||
       (video.recording_date || '') !== (baseline.recording_date || '') ||
+      (video.latitude ?? null) !== (baseline.latitude ?? null) ||
+      (video.longitude ?? null) !== (baseline.longitude ?? null) ||
       !this.arraysEqual(video.tags || [], baseline.tags || [])
     );
   }
@@ -2097,7 +2118,9 @@ class YouTubeBatchManager {
         license: video.license,
         embeddable: video.embeddable,
         public_stats_viewable: video.public_stats_viewable,
-        recording_date: ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || '')
+        recording_date: ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || ''),
+        latitude: this.parseCoordInput((document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value, video.latitude),
+        longitude: this.parseCoordInput((document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value, video.longitude)
       };
 
       const result = await this.youtubeAPI.updateVideo(videoId, updates);

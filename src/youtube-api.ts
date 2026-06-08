@@ -650,6 +650,8 @@ export class YouTubeAPI {
           embeddable: item.status?.embeddable,
           public_stats_viewable: item.status?.publicStatsViewable,
           recording_date: item.recordingDetails?.recordingDate?.substring(0, 10),
+          latitude: item.recordingDetails?.location?.latitude,
+          longitude: item.recordingDetails?.location?.longitude,
           duration: item.contentDetails?.duration,
           upload_status: item.status?.uploadStatus,
           processing_status: item.status?.processingStatus,
@@ -846,13 +848,20 @@ export class YouTubeAPI {
       // self-declaration untouched.
 
       const parts = ['snippet', 'status'];
-      if (updates.recording_date !== undefined) {
-        // recordingDate is ISO 8601; YouTube keeps only the date portion. An
-        // empty value clears it. recordingDetails is added to the part only when
-        // we manage it, so videos.update never wipes an untouched recordingDate.
-        (requestBody as any).recordingDetails = updates.recording_date
-          ? { recordingDate: `${updates.recording_date}T00:00:00.000Z` }
-          : {};
+      if (updates.recording_date !== undefined || updates.latitude !== undefined || updates.longitude !== undefined) {
+        // recordingDate is ISO 8601 (YouTube keeps only the date portion).
+        // recordingDetails.location is deprecated but still accepted. Round-trip
+        // BOTH so videos.update does not wipe the untouched one (it deletes any
+        // omitted property). recordingDetails is added to the part only when we
+        // manage it. An empty date / missing coordinates clears that field.
+        const recordingDetails: any = {};
+        if (updates.recording_date) {
+          recordingDetails.recordingDate = `${updates.recording_date}T00:00:00.000Z`;
+        }
+        if (typeof updates.latitude === 'number' && typeof updates.longitude === 'number') {
+          recordingDetails.location = { latitude: updates.latitude, longitude: updates.longitude };
+        }
+        (requestBody as any).recordingDetails = recordingDetails;
         parts.push('recordingDetails');
       }
 
