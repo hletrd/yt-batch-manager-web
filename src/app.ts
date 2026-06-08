@@ -695,6 +695,20 @@ class YouTubeBatchManager {
         return null;
       }
 
+      // Discard a cache that looks thin/broken (e.g. backup records, or a cache
+      // written during a failed load): videos fetched from YouTube always carry
+      // thumbnail data, so if none do, drop the cache and load fresh instead of
+      // showing empty cards forever — a browser refresh does not clear localStorage.
+      const cachedVideos = cacheData.videos || [];
+      const hasThumbnails = cachedVideos.some(v =>
+        !!v.thumbnail_url || (!!v.thumbnails && Object.keys(v.thumbnails).length > 0)
+      );
+      if (cachedVideos.length > 0 && !hasThumbnails) {
+        console.log('Cached videos look thin (no thumbnails); discarding cache and loading fresh');
+        localStorage.removeItem(this.VIDEO_CACHE_KEY);
+        return null;
+      }
+
       this.cachedChannelId = cacheData.channelId;
       console.log('Loading videos from cache:', cacheData.videos.length);
       return cacheData.videos;
