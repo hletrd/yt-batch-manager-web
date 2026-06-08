@@ -49,7 +49,10 @@ class YouTubeBatchManager {
   private youtubeAPI: YouTubeAPI;
   private batchSaveInProgress: boolean = false;
   private skipCacheUpdates: boolean = false;
-  private defaultThumbnail: string = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjRkZGIiBzdHJva2U9IiNEREQiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4PSI0MCIgeT0iMjUiPgo8cGF0aCBkPSJNMzUgMjBMMTAgMzBWMTBMMzUgMjBaIiBmaWxsPSIjQ0NDIi8+Cjwvc3ZnPgo8L3N2Zz4K';
+  // 16:9 transparent placeholder (muted play glyph). Transparent so the themed
+  // .video-thumbnail img background shows through in both light and dark mode,
+  // and 16:9 so it isn't distorted to fill the 320x180 thumbnail slot.
+  private defaultThumbnail: string = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTYwIiBjeT0iOTAiIHI9IjI4IiBzdHJva2U9IiM5Y2EzYWYiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0xNTIgNzggTDE3NiA5MCBMMTUyIDEwMiBaIiBmaWxsPSIjOWNhM2FmIi8+PC9zdmc+';
   private videoCategories: Record<string, { id: string; title: string }> = {};
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
   private readonly CACHE_EXPIRY_HOURS = 24;
