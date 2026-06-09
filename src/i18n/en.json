@@ -139,6 +139,7 @@
     "failedToUpdateVideo": "Failed to update video",
     "failedToSaveChanges": "Failed to save changes",
     "failedToLoadVideos": "Failed to load videos",
+    "quotaExceeded": "YouTube API daily quota exceeded. It resets at midnight Pacific Time, or you can request more quota in the Google Cloud Console.",
     "failedToLogout": "Failed to logout",
     "failedToClearCache": "Failed to clear cache",
     "credentialsNotLoaded": "Credentials not loaded.",

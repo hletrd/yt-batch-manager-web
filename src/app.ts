@@ -828,7 +828,12 @@ class YouTubeBatchManager {
     } catch (error) {
       console.error('Error loading videos:', error);
       this.updateAuthDependentButtons();
-      this.showStatus(rendererI18n.t('status.failedToLoadVideos') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      if (/quotaExceeded|dailyLimitExceeded/i.test(msg)) {
+        this.showStatus(rendererI18n.t('status.quotaExceeded'), 'error');
+      } else {
+        this.showStatus(rendererI18n.t('status.failedToLoadVideos') + ': ' + msg, 'error');
+      }
     } finally {
       this.state.isLoading = false;
       this.hideLoadingOverlay();

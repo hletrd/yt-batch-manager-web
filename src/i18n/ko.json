@@ -139,6 +139,7 @@
     "failedToUpdateVideo": "동영상 업데이트 실패",
     "failedToSaveChanges": "변경사항 저장 실패",
     "failedToLoadVideos": "동영상 불러오기 실패",
+    "quotaExceeded": "YouTube API 일일 할당량을 초과했습니다. 태평양시 자정(PT)에 리셋되며, Google Cloud Console에서 할당량을 늘릴 수 있습니다.",
     "failedToLogout": "로그아웃 실패",
     "failedToClearCache": "캐시 삭제 실패",
     "credentialsNotLoaded": "인증 정보가 로드되지 않았습니다. client.json 파일을 확인해주세요.",

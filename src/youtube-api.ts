@@ -744,7 +744,7 @@ export class YouTubeAPI {
         detail += ` ${reason}`;
       }
       if (message) {
-        detail += `: ${message}`;
+        detail += `: ${this.stripHtml(message)}`;
       }
     } catch {
       if (response.statusText) {
@@ -752,6 +752,22 @@ export class YouTubeAPI {
       }
     }
     return `${prefix}: ${detail}`;
+  }
+
+  // YouTube error messages can embed HTML (e.g. the quota message wraps "quota"
+  // in an <a href> link). Status messages are shown via textContent, so strip
+  // tags and decode common entities to render clean, readable text.
+  private stripHtml(text: string): string {
+    return text
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   /**
