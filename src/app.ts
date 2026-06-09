@@ -600,6 +600,15 @@ class YouTubeBatchManager {
   }
 
   private generateResponsiveImageHtml(video: VideoData): string {
+    // Videos still uploading/processing only have a tiny placeholder thumbnail
+    // that looks blurry and stretched when force-upscaled into the 320x180 slot.
+    // Show the clean themed placeholder instead until processing completes.
+    if (video.upload_status && video.upload_status !== 'processed') {
+      return `
+      <img src="${this.escapeHtmlAttribute(this.defaultThumbnail)}" alt="Video thumbnail" loading="lazy" />
+    `;
+    }
+
     const fallbackUrl = video.thumbnail_url || this.defaultThumbnail;
 
     const srcsetParts: string[] = [];
