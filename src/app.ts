@@ -463,8 +463,12 @@ class YouTubeBatchManager {
                   <label data-i18n="video.recordingLocation">Location</label>
                   <input type="number" step="any" min="-90" max="90" class="recording-location-input" id="latitude-${video.id}" data-i18n-placeholder="video.latitude" placeholder="Latitude" value="${typeof video.latitude === 'number' ? video.latitude : ''}" onchange="app.handleLocationChange('${video.id}')">
                   <input type="number" step="any" min="-180" max="180" class="recording-location-input" id="longitude-${video.id}" data-i18n-placeholder="video.longitude" placeholder="Longitude" value="${typeof video.longitude === 'number' ? video.longitude : ''}" onchange="app.handleLocationChange('${video.id}')">
-                  <button type="button" class="location-btn" onclick="app.useCurrentLocation('${video.id}')" data-i18n-title="video.useCurrentLocation" title="Use current location" aria-label="Use current location">📍</button>
-                  <button type="button" class="location-btn" onclick="app.viewLocationOnMap('${video.id}')" data-i18n-title="video.viewOnMap" title="View on map" aria-label="View on map">🗺️</button>
+                  <button type="button" class="location-btn" onclick="app.useCurrentLocation('${video.id}')" data-i18n-title="video.useCurrentLocation" title="Use current location" aria-label="Use current location">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                  </button>
+                  <button type="button" class="location-btn" onclick="app.viewLocationOnMap('${video.id}')" data-i18n-title="video.viewOnMap" title="View on map" aria-label="View on map">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                  </button>
                 </div>
                 <div class="synthetic-control">
                   <label class="synthetic-label">
