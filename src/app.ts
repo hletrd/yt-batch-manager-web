@@ -1518,22 +1518,31 @@ class YouTubeBatchManager {
     }
   }
 
-  private filterVideoDataForBackup(videos: VideoData[]): Partial<VideoData>[] {
-    return videos.map(video => {
-      const {
-        thumbnails: _thumbnails,
-        thumbnail_url: _thumbnail_url,
-        duration: _duration,
-        upload_status: _upload_status,
-        processing_status: _processing_status,
-        processing_progress: _processing_progress,
-        statistics: _statistics,
-        width_pixels: _width_pixels,
-        height_pixels: _height_pixels,
-        ...filteredVideo
-      } = video;
-      return filteredVideo;
-    });
+  private filterVideoDataForBackup(videos: VideoData[]): Record<string, unknown>[] {
+    // Emit every editable field for each video. Unset optional fields are written
+    // as null (rather than dropped — JSON.stringify omits undefined-valued keys)
+    // so the exported JSON is a complete, fill-in-able template. Derived/read-only
+    // fields (thumbnails, duration, statistics, pixel dimensions, upload/processing
+    // status) are intentionally omitted.
+    return videos.map(video => ({
+      id: video.id,
+      title: video.title,
+      description: video.description,
+      published_at: video.published_at,
+      privacy_status: video.privacy_status,
+      category_id: video.category_id,
+      tags: video.tags ?? [],
+      defaultAudioLanguage: video.defaultAudioLanguage ?? null,
+      default_language: video.default_language ?? null,
+      recording_date: video.recording_date ?? null,
+      latitude: video.latitude ?? null,
+      longitude: video.longitude ?? null,
+      license: video.license ?? null,
+      contains_synthetic_media: video.contains_synthetic_media ?? false,
+      made_for_kids: video.made_for_kids ?? null,
+      embeddable: video.embeddable ?? null,
+      public_stats_viewable: video.public_stats_viewable ?? null
+    }));
   }
 
   async loadFromFile(): Promise<void> {
@@ -1602,6 +1611,17 @@ class YouTubeBatchManager {
       category_id: video.category_id != null ? String(video.category_id) : '22',
       tags: Array.isArray(video.tags) ? video.tags.filter((t): t is string => typeof t === 'string') : [],
       defaultAudioLanguage: typeof video.defaultAudioLanguage === 'string' ? video.defaultAudioLanguage : undefined,
+      // Normalize optional fields: the backup writes unset values as null, but a
+      // null must become undefined here so it is treated as "not set" and is not
+      // sent to videos.update (which would wipe or reject the field).
+      default_language: typeof video.default_language === 'string' ? video.default_language : undefined,
+      recording_date: typeof video.recording_date === 'string' ? video.recording_date : undefined,
+      latitude: typeof video.latitude === 'number' ? video.latitude : undefined,
+      longitude: typeof video.longitude === 'number' ? video.longitude : undefined,
+      license: typeof video.license === 'string' ? video.license : undefined,
+      made_for_kids: typeof video.made_for_kids === 'boolean' ? video.made_for_kids : undefined,
+      embeddable: typeof video.embeddable === 'boolean' ? video.embeddable : undefined,
+      public_stats_viewable: typeof video.public_stats_viewable === 'boolean' ? video.public_stats_viewable : undefined,
       contains_synthetic_media: video.contains_synthetic_media === true,
       // Thumbnail URLs flow into src/srcset attributes. Keep them only when they
       // are strings with a safe scheme; non-conforming values are dropped so the
