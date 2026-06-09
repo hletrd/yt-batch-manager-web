@@ -1522,6 +1522,8 @@ class YouTubeBatchManager {
         processing_status: _processing_status,
         processing_progress: _processing_progress,
         statistics: _statistics,
+        width_pixels: _width_pixels,
+        height_pixels: _height_pixels,
         ...filteredVideo
       } = video;
       return filteredVideo;
