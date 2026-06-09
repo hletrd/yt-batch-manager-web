@@ -85,7 +85,13 @@
     "syntheticContent": "변경되거나 합성된 콘텐츠 (AI)",
     "shortBadge": "쇼츠",
     "recordingDate": "촬영일",
-    "recordingLocation": "촬영 장소"
+    "recordingLocation": "촬영 장소",
+    "titleDescriptionLanguage": "제목·설명 언어",
+    "license": "라이선스"
+  },
+  "license": {
+    "standard": "표준 YouTube 라이선스",
+    "creativeCommon": "크리에이티브 커먼즈 - 저작자 표시"
   },
   "sorting": {
     "dateNewestFirst": "날짜 (최신순)",

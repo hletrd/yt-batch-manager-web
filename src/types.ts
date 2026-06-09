@@ -19,6 +19,7 @@ export interface VideoData {
   category_id: string;
   tags?: string[];
   defaultAudioLanguage?: string;
+  default_language?: string;
   contains_synthetic_media?: boolean;
   made_for_kids?: boolean;
   license?: string;

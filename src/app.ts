@@ -295,7 +295,7 @@ class YouTubeBatchManager {
     }
   }
 
-  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string, savedLatitude?: number, savedLongitude?: number): boolean {
+  private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string, savedLatitude?: number, savedLongitude?: number, savedLicense?: string, savedDefaultLanguage?: string): boolean {
     const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
     const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
     const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
@@ -305,6 +305,8 @@ class YouTubeBatchManager {
     const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement;
     const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement;
     const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement;
+    const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement;
+    const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement;
 
     const currentTags = this.getCurrentTags(videoId);
     const originalTags = this.getOriginalTags(videoId);
@@ -319,6 +321,8 @@ class YouTubeBatchManager {
       (recordingDateEl ? recordingDateEl.value : '') !== (savedRecordingDate || '') ||
       (latEl ? latEl.value.trim() : '') !== (savedLatitude != null ? String(savedLatitude) : '') ||
       (lngEl ? lngEl.value.trim() : '') !== (savedLongitude != null ? String(savedLongitude) : '') ||
+      (licenseEl ? licenseEl.value : (savedLicense || 'youtube')) !== (savedLicense || 'youtube') ||
+      (defaultLangEl ? defaultLangEl.value : '') !== (savedDefaultLanguage || '') ||
       !this.arraysEqual(currentTags, originalTags)
     );
   }
@@ -436,6 +440,19 @@ class YouTubeBatchManager {
                 <div class="language-control">
                   <select class="language-select" id="language-${video.id}" onchange="app.handleLanguageChange('${video.id}')">
                     ${this.generateLanguageOptions(video.defaultAudioLanguage)}
+                  </select>
+                </div>
+                <div class="language-control">
+                  <label for="default-language-${video.id}" data-i18n="video.titleDescriptionLanguage">Title/description language</label>
+                  <select class="language-select" id="default-language-${video.id}" onchange="app.handleDefaultLanguageChange('${video.id}')">
+                    ${this.generateLanguageOptions(video.default_language)}
+                  </select>
+                </div>
+                <div class="language-control">
+                  <label for="license-${video.id}" data-i18n="video.license">License</label>
+                  <select class="language-select" id="license-${video.id}" onchange="app.handleLicenseChange('${video.id}')">
+                    <option value="youtube" ${(video.license || 'youtube') === 'youtube' ? 'selected' : ''} data-i18n="license.standard">Standard YouTube License</option>
+                    <option value="creativeCommon" ${video.license === 'creativeCommon' ? 'selected' : ''} data-i18n="license.creativeCommon">Creative Commons - Attribution</option>
                   </select>
                 </div>
                 <div class="recording-date-control">
@@ -1838,6 +1855,14 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  handleLicenseChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
+  handleDefaultLanguageChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
   private parseCoordInput(raw: string | undefined, fallback: number | undefined): number | undefined {
     if (raw === undefined) return fallback;
     const trimmed = raw.trim();
@@ -1864,7 +1889,9 @@ class YouTubeBatchManager {
       original.contains_synthetic_media,
       original.recording_date,
       original.latitude,
-      original.longitude
+      original.longitude,
+      original.license,
+      original.default_language
     );
 
     if (hasChanges) {
@@ -1900,6 +1927,8 @@ class YouTubeBatchManager {
       (video.recording_date || '') !== (baseline.recording_date || '') ||
       (video.latitude ?? null) !== (baseline.latitude ?? null) ||
       (video.longitude ?? null) !== (baseline.longitude ?? null) ||
+      (video.license || 'youtube') !== (baseline.license || 'youtube') ||
+      (video.default_language || '') !== (baseline.default_language || '') ||
       !this.arraysEqual(video.tags || [], baseline.tags || [])
     );
   }
@@ -2120,11 +2149,12 @@ class YouTubeBatchManager {
         category_id: categoryEl ? categoryEl.value : video.category_id,
         // Empty string is the "Auto" option and must be allowed to clear a set language.
         defaultAudioLanguage: languageEl ? languageEl.value : (video.defaultAudioLanguage || ''),
+        default_language: ((document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null)?.value) ?? (video.default_language || ''),
         tags: video.tags || [],
         contains_synthetic_media: syntheticEl ? syntheticEl.checked : (video.contains_synthetic_media ?? false),
         // Re-send the other mutable status fields so videos.update doesn't wipe
         // them (it deletes any status property omitted from the request).
-        license: video.license,
+        license: (document.getElementById(`license-${videoId}`) as HTMLSelectElement | null)?.value || video.license || 'youtube',
         embeddable: video.embeddable,
         public_stats_viewable: video.public_stats_viewable,
         recording_date: ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || ''),

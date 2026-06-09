@@ -85,7 +85,13 @@
     "syntheticContent": "Altered or synthetic content",
     "shortBadge": "Short",
     "recordingDate": "Recording date",
-    "recordingLocation": "Location"
+    "recordingLocation": "Location",
+    "titleDescriptionLanguage": "Title/description language",
+    "license": "License"
+  },
+  "license": {
+    "standard": "Standard YouTube License",
+    "creativeCommon": "Creative Commons - Attribution"
   },
   "sorting": {
     "dateNewestFirst": "Date (Newest First)",

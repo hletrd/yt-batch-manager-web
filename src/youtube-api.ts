@@ -644,6 +644,7 @@ export class YouTubeAPI {
           category_id: item.snippet.categoryId || '22',
           tags: item.snippet.tags || [],
           defaultAudioLanguage: item.snippet.defaultAudioLanguage,
+          default_language: item.snippet.defaultLanguage,
           contains_synthetic_media: item.status?.containsSyntheticMedia ?? false,
           made_for_kids: item.status?.madeForKids,
           license: item.status?.license,
@@ -821,6 +822,9 @@ export class YouTubeAPI {
       }
       if (updates.defaultAudioLanguage !== undefined) {
         (requestBody.snippet as any).defaultAudioLanguage = updates.defaultAudioLanguage;
+      }
+      if (updates.default_language !== undefined) {
+        (requestBody.snippet as any).defaultLanguage = updates.default_language;
       }
       if (updates.privacy_status !== undefined) {
         (requestBody.status as any).privacyStatus = updates.privacy_status;
