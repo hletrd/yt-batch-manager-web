@@ -555,7 +555,10 @@ export class YouTubeAPI {
     return response.json();
   }
 
-  async getVideos(maxResults: number = 200): Promise<VideoData[]> {
+  // Default Infinity = load the channel's entire uploads playlist. Paging
+  // playlistItems.list is 1 quota unit per page, so fetching every video is
+  // cheap; the loop simply runs until there is no nextPageToken.
+  async getVideos(maxResults: number = Infinity): Promise<VideoData[]> {
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
