@@ -87,7 +87,11 @@
     "recordingDate": "촬영일",
     "recordingLocation": "촬영 장소",
     "titleDescriptionLanguage": "제목·설명 언어",
-    "license": "라이선스"
+    "license": "라이선스",
+    "latitude": "위도",
+    "longitude": "경도",
+    "useCurrentLocation": "현재 위치 사용",
+    "viewOnMap": "지도에서 보기"
   },
   "license": {
     "standard": "표준 YouTube 라이선스",
@@ -118,6 +122,9 @@
     "videosImported": "{count}개 동영상을 가져왔습니다",
     "tagsCopied": "태그 {count}개를 클립보드에 복사했습니다",
     "noTagsToCopy": "복사할 태그가 없습니다",
+    "geolocationUnavailable": "이 브라우저에서 위치 정보를 사용할 수 없습니다",
+    "geolocationFailed": "현재 위치를 가져오지 못했습니다",
+    "noLocationSet": "이 영상에 설정된 위치가 없습니다",
     "failedToCopyTags": "태그 복사에 실패했습니다",
     "videosLoaded": "{count}개 동영상을 불러왔습니다",
     "videosSaved": "{count}개 동영상을 성공적으로 업데이트했습니다",

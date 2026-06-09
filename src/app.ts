@@ -461,8 +461,10 @@ class YouTubeBatchManager {
                 </div>
                 <div class="recording-location-control">
                   <label data-i18n="video.recordingLocation">Location</label>
-                  <input type="number" step="any" class="recording-location-input" id="latitude-${video.id}" placeholder="Lat" value="${typeof video.latitude === 'number' ? video.latitude : ''}" onchange="app.handleRecordingDateChange('${video.id}')">
-                  <input type="number" step="any" class="recording-location-input" id="longitude-${video.id}" placeholder="Lng" value="${typeof video.longitude === 'number' ? video.longitude : ''}" onchange="app.handleRecordingDateChange('${video.id}')">
+                  <input type="number" step="any" min="-90" max="90" class="recording-location-input" id="latitude-${video.id}" data-i18n-placeholder="video.latitude" placeholder="Latitude" value="${typeof video.latitude === 'number' ? video.latitude : ''}" onchange="app.handleLocationChange('${video.id}')">
+                  <input type="number" step="any" min="-180" max="180" class="recording-location-input" id="longitude-${video.id}" data-i18n-placeholder="video.longitude" placeholder="Longitude" value="${typeof video.longitude === 'number' ? video.longitude : ''}" onchange="app.handleLocationChange('${video.id}')">
+                  <button type="button" class="location-btn" onclick="app.useCurrentLocation('${video.id}')" data-i18n-title="video.useCurrentLocation" title="Use current location" aria-label="Use current location">📍</button>
+                  <button type="button" class="location-btn" onclick="app.viewLocationOnMap('${video.id}')" data-i18n-title="video.viewOnMap" title="View on map" aria-label="View on map">🗺️</button>
                 </div>
                 <div class="synthetic-control">
                   <label class="synthetic-label">
@@ -1855,6 +1857,39 @@ class YouTubeBatchManager {
 
   handleRecordingDateChange(videoId: string): void {
     this.checkForChanges(videoId);
+  }
+
+  handleLocationChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
+  useCurrentLocation(videoId: string): void {
+    if (!navigator.geolocation) {
+      this.showStatus(rendererI18n.t('status.geolocationUnavailable'), 'error');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null;
+        const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null;
+        if (latEl) latEl.value = pos.coords.latitude.toFixed(6);
+        if (lngEl) lngEl.value = pos.coords.longitude.toFixed(6);
+        this.checkForChanges(videoId);
+      },
+      () => {
+        this.showStatus(rendererI18n.t('status.geolocationFailed'), 'error');
+      }
+    );
+  }
+
+  viewLocationOnMap(videoId: string): void {
+    const lat = (document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value.trim();
+    const lng = (document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value.trim();
+    if (!lat || !lng) {
+      this.showStatus(rendererI18n.t('status.noLocationSet'), 'info');
+      return;
+    }
+    window.open(`https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lng)}`, '_blank', 'noopener');
   }
 
   handleLicenseChange(videoId: string): void {

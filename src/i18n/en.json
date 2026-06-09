@@ -87,7 +87,11 @@
     "recordingDate": "Recording date",
     "recordingLocation": "Location",
     "titleDescriptionLanguage": "Title/description language",
-    "license": "License"
+    "license": "License",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "useCurrentLocation": "Use current location",
+    "viewOnMap": "View on map"
   },
   "license": {
     "standard": "Standard YouTube License",
@@ -118,6 +122,9 @@
     "videosImported": "Imported {count} videos",
     "tagsCopied": "Copied {count} tags to clipboard",
     "noTagsToCopy": "No tags to copy",
+    "geolocationUnavailable": "Geolocation is not available in this browser",
+    "geolocationFailed": "Could not get your current location",
+    "noLocationSet": "No location set for this video",
     "failedToCopyTags": "Failed to copy tags",
     "videosLoaded": "Loaded {count} videos",
     "videosSaved": "Successfully updated {count} videos",

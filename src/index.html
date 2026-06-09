@@ -574,7 +574,7 @@
     }
 
     .recording-location-input {
-      width: 84px;
+      width: 92px;
       padding: 3px 8px;
       border: 1px solid var(--border-color);
       border-radius: 4px;
@@ -588,6 +588,25 @@
 
     .recording-location-input:focus {
       outline: none;
+      border-color: var(--accent-primary);
+    }
+
+    .location-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 26px;
+      padding: 0 7px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-primary);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      transition: border-color 0.2s ease;
+    }
+
+    .location-btn:hover {
       border-color: var(--accent-primary);
     }
 
