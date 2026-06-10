@@ -39,11 +39,16 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
   silently leaving the select empty. Verified in browser by restoring a snapshot with a
   category id outside the fallback list.
 
-## A34 / Plan 02 T6 — Generated docs `lang="en"`
+## A34 / Plan 02 T6 — Generated docs `lang="en"` — RESOLVED (by rationale, no code change)
 - Severity/Confidence: LOW / Medium.
 - Citation: `build-docs.js:6`.
-- Reason: doc pages are predominantly English; bilingual `lang` switching for static generated docs is low value. Main-app lang (A7) is fixed in Plan 02 T1.
-- Exit criterion: if generated docs become per-language, or a localization pass is undertaken.
+- Resolution: the generated docs are English content — privacy.html/terms.html are
+  English-only, and about.html (from README.md) is English-primary with a single
+  clearly-labeled Korean features section — so the document-level `lang="en"` is
+  factually accurate and `build-docs.js` needs no change. The only "true" fix would be
+  localizing the docs themselves, which is out of scope. Re-open only if the generated
+  docs become bilingual/per-language (then emit a matching `lang` per page, and mark
+  any embedded Korean section with `lang="ko"`).
 
 ## A18 / Plan 06 T4 — PRIVACY.md contact address looks like a placeholder — RESOLVED
 - Severity/Confidence: MEDIUM / Medium.
