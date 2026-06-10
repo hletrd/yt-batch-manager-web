@@ -8,6 +8,7 @@ import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderVideoCardHtml } from './video-card.js';
 import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showStatus } from './ui-feedback.js';
 import * as backup from './backup.js';
+import * as theme from './theme.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -54,7 +55,7 @@ class YouTubeBatchManager {
       this.isOAuthRedirecting = true;
       this.saveTemporaryChanges();
     });
-    this.initializeTheme();
+    theme.initializeTheme();
     this.setupEventListeners();
     this.setupInputEditListeners();
     this.setupBeforeUnloadHandler();
@@ -504,38 +505,10 @@ class YouTubeBatchManager {
     }
   }
 
+  // Delegates to src/theme.ts (A11); kept as a method because the header
+  // theme button calls app.toggleTheme() via an inline handler.
   toggleTheme(): void {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    this.setTheme(newTheme);
-  }
-
-  private setTheme(theme: string): void {
-    document.documentElement.setAttribute('data-theme', theme);
-    this.updateThemeIcon(theme);
-    localStorage.setItem('theme', theme);
-  }
-
-  private updateThemeIcon(theme: string): void {
-    const iconPath = document.getElementById('theme-icon-path');
-    if (iconPath) {
-      if (theme === 'dark') {
-        iconPath.setAttribute('d', 'M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93');
-      } else {
-        iconPath.setAttribute('d', 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z');
-      }
-    }
-  }
-
-  private initializeTheme(): void {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      this.updateThemeIcon(savedTheme);
-    } else {
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      this.updateThemeIcon(systemPrefersDark ? 'dark' : 'light');
-    }
+    theme.toggleTheme();
   }
 
   private setupEventListeners(): void {
