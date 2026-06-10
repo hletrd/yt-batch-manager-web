@@ -25,6 +25,17 @@ interface TemporaryFormData {
   category_id: string;
   defaultAudioLanguage?: string;
   tags: string[];
+  // Editable fields added in later feature cycles. Optional so a snapshot written by an
+  // older build (lacking these keys) still restores the original fields without error.
+  // Coordinates are stored as the raw input strings (not numbers) so that an emptied
+  // coordinate round-trips as '' through JSON (a `number | undefined` would be dropped by
+  // JSON.stringify, losing a "cleared the coordinate" edit on restore).
+  recording_date?: string;
+  latitude?: string;
+  longitude?: string;
+  license?: string;
+  default_language?: string;
+  contains_synthetic_media?: boolean;
 }
 
 interface TemporaryChangesData {
@@ -2311,6 +2322,12 @@ class YouTubeBatchManager {
         const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
         const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
         const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
+        const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null;
+        const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null;
+        const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null;
+        const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement | null;
+        const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
+        const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement | null;
         const currentTags = this.getCurrentTags(videoId);
 
         if (titleEl || descriptionEl || privacyEl || categoryEl || languageEl || currentTags.length > 0) {
@@ -2320,7 +2337,17 @@ class YouTubeBatchManager {
             privacy_status: privacyEl?.value || '',
             category_id: categoryEl?.value || '',
             defaultAudioLanguage: languageEl?.value || undefined,
-            tags: currentTags
+            tags: currentTags,
+            // Editable fields added in later cycles. Persisted so an unsaved edit to any of
+            // them survives the OAuth-redirect round-trip; only included when the input
+            // exists so older layouts still round-trip the original fields. Coordinates are
+            // stored as raw strings so a cleared coordinate ('') round-trips through JSON.
+            ...(recordingDateEl ? { recording_date: recordingDateEl.value } : {}),
+            ...(latEl ? { latitude: latEl.value } : {}),
+            ...(lngEl ? { longitude: lngEl.value } : {}),
+            ...(licenseEl ? { license: licenseEl.value } : {}),
+            ...(defaultLangEl ? { default_language: defaultLangEl.value } : {}),
+            ...(syntheticEl ? { contains_synthetic_media: syntheticEl.checked } : {})
           };
         }
       });
@@ -2373,6 +2400,62 @@ class YouTubeBatchManager {
         if (languageEl && formData.defaultAudioLanguage !== languageEl.value) {
           languageEl.value = formData.defaultAudioLanguage || '';
           this.handleLanguageChange(videoId);
+        }
+
+        // Restore the later-cycle editable fields. Each is tolerant of older snapshots that
+        // lack the key (the `in` check leaves the input untouched) and is guarded on the
+        // input existing and the value actually differing, mirroring the blocks above.
+        if ('recording_date' in formData) {
+          const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null;
+          const restored = formData.recording_date || '';
+          if (recordingDateEl && recordingDateEl.value !== restored) {
+            recordingDateEl.value = restored;
+            this.handleRecordingDateChange(videoId);
+          }
+        }
+
+        if ('latitude' in formData || 'longitude' in formData) {
+          const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null;
+          const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null;
+          let locationChanged = false;
+          if (latEl && 'latitude' in formData && latEl.value !== (formData.latitude || '')) {
+            latEl.value = formData.latitude || '';
+            locationChanged = true;
+          }
+          if (lngEl && 'longitude' in formData && lngEl.value !== (formData.longitude || '')) {
+            lngEl.value = formData.longitude || '';
+            locationChanged = true;
+          }
+          if (locationChanged) {
+            this.handleLocationChange(videoId);
+          }
+        }
+
+        if ('license' in formData) {
+          const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement | null;
+          const restored = formData.license || 'youtube';
+          if (licenseEl && licenseEl.value !== restored) {
+            licenseEl.value = restored;
+            this.handleLicenseChange(videoId);
+          }
+        }
+
+        if ('default_language' in formData) {
+          const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
+          const restored = formData.default_language || '';
+          if (defaultLangEl && defaultLangEl.value !== restored) {
+            defaultLangEl.value = restored;
+            this.handleDefaultLanguageChange(videoId);
+          }
+        }
+
+        if ('contains_synthetic_media' in formData) {
+          const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement | null;
+          const restored = formData.contains_synthetic_media === true;
+          if (syntheticEl && syntheticEl.checked !== restored) {
+            syntheticEl.checked = restored;
+            this.handleSyntheticMediaChange(videoId);
+          }
         }
 
         if (formData.tags && formData.tags.length > 0) {
