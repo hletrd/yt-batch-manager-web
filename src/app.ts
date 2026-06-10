@@ -4,6 +4,7 @@ import type { VideoData } from './types.js';
 import { arraysEqual, formatDuration, formatNumber, isLikelyShort, parseCoordInput, publishedTime } from './utils/format.js';
 import { escapeHtml, escapeHtmlAttribute, sanitizeImageUrl, sanitizeThumbnailMap } from './utils/html.js';
 import * as videoCache from './video-cache.js';
+import * as tempChanges from './temp-changes.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -13,30 +14,6 @@ interface AppState {
   videosPerPage: number;
   currentPage: number;
   isLoading: boolean;
-}
-
-interface TemporaryFormData {
-  title: string;
-  description: string;
-  privacy_status: string;
-  category_id: string;
-  defaultAudioLanguage?: string;
-  tags: string[];
-  // Editable fields added in later feature cycles. Optional so a snapshot written by an
-  // older build (lacking these keys) still restores the original fields without error.
-  // Coordinates are stored as the raw input strings (not numbers) so that an emptied
-  // coordinate round-trips as '' through JSON (a `number | undefined` would be dropped by
-  // JSON.stringify, losing a "cleared the coordinate" edit on restore).
-  recording_date?: string;
-  latitude?: string;
-  longitude?: string;
-  license?: string;
-  default_language?: string;
-  contains_synthetic_media?: boolean;
-}
-
-interface TemporaryChangesData {
-  changed: Record<string, TemporaryFormData>;
 }
 
 class YouTubeBatchManager {
@@ -67,7 +44,6 @@ class YouTubeBatchManager {
   private defaultThumbnail: string = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTYwIiBjeT0iOTAiIHI9IjI4IiBzdHJva2U9IiM5Y2EzYWYiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0xNTIgNzggTDE3NiA5MCBMMTUyIDEwMiBaIiBmaWxsPSIjOWNhM2FmIi8+PC9zdmc+';
   private videoCategories: Record<string, { id: string; title: string }> = {};
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
-  private readonly TEMP_CHANGES_KEY = 'yt_temp_form_changes';
   private isOAuthRedirecting = false;
   // In-memory copy of the cached channelId so updateVideoCache does not have to
   // re-parse the entire serialized video cache on every single-video save.
@@ -2197,203 +2173,38 @@ class YouTubeBatchManager {
     });
   }
 
+  // Thin wrappers over src/temp-changes.ts (A11): the module owns the
+  // yt_temp_form_changes snapshot; the app supplies its state and reactions.
   private saveTemporaryChanges(): void {
-    try {
-      if (this.state.changedVideos.size === 0) {
-        return;
-      }
-
-      const tempData: TemporaryChangesData = { changed: {} };
-
-      this.state.changedVideos.forEach(videoId => {
-        const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
-        const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
-        const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
-        const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
-        const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
-        const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null;
-        const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null;
-        const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null;
-        const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement | null;
-        const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
-        const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement | null;
-        const currentTags = this.getCurrentTags(videoId);
-
-        if (titleEl || descriptionEl || privacyEl || categoryEl || languageEl || currentTags.length > 0) {
-          tempData.changed[videoId] = {
-            title: titleEl?.value || '',
-            description: descriptionEl?.value || '',
-            privacy_status: privacyEl?.value || '',
-            category_id: categoryEl?.value || '',
-            defaultAudioLanguage: languageEl?.value || undefined,
-            tags: currentTags,
-            // Editable fields added in later cycles. Persisted so an unsaved edit to any of
-            // them survives the OAuth-redirect round-trip; only included when the input
-            // exists so older layouts still round-trip the original fields. Coordinates are
-            // stored as raw strings so a cleared coordinate ('') round-trips through JSON.
-            ...(recordingDateEl ? { recording_date: recordingDateEl.value } : {}),
-            ...(latEl ? { latitude: latEl.value } : {}),
-            ...(lngEl ? { longitude: lngEl.value } : {}),
-            ...(licenseEl ? { license: licenseEl.value } : {}),
-            ...(defaultLangEl ? { default_language: defaultLangEl.value } : {}),
-            ...(syntheticEl ? { contains_synthetic_media: syntheticEl.checked } : {})
-          };
-        }
-      });
-
-      localStorage.setItem(this.TEMP_CHANGES_KEY, JSON.stringify(tempData));
-      console.log('Temporary changes saved for', Object.keys(tempData.changed).length, 'videos');
-    } catch (error) {
-      console.error('Failed to save temporary changes:', error);
-    }
-  }
-
-  // Restore a value into a <select>, preserving it even when its <option> is
-  // absent (e.g. category/language metadata failed to load and the restored
-  // value is outside the fallback set). Assigning a value with no matching
-  // option leaves the select empty and silently drops the user's unsaved
-  // choice (A32), so the missing option is appended (value doubling as its
-  // label) and selected. DOM assignment (value/textContent) is used instead of
-  // HTML interpolation, so the value needs no manual attribute escaping.
-  private setSelectValuePreservingChoice(select: HTMLSelectElement, value: string): void {
-    select.value = value;
-    if (value !== '' && select.value !== value) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = value;
-      select.appendChild(option);
-      select.value = value;
-    }
+    tempChanges.saveTemporaryChanges(this.state.changedVideos, (videoId) => this.getCurrentTags(videoId));
   }
 
   private restoreTemporaryChanges(): void {
-    try {
-      const tempDataStr = localStorage.getItem(this.TEMP_CHANGES_KEY);
-      if (!tempDataStr) {
-        return;
-      }
+    const restoredCount = tempChanges.restoreTemporaryChanges({
+      getVideo: (videoId) => this.getVideo(videoId),
+      handleTitleChange: (videoId) => this.handleTitleChange(videoId),
+      handleDescriptionChange: (videoId) => this.handleDescriptionChange(videoId),
+      handlePrivacyChange: (videoId) => this.handlePrivacyChange(videoId),
+      handleCategoryChange: (videoId) => this.handleCategoryChange(videoId),
+      handleLanguageChange: (videoId) => this.handleLanguageChange(videoId),
+      handleRecordingDateChange: (videoId) => this.handleRecordingDateChange(videoId),
+      handleLocationChange: (videoId) => this.handleLocationChange(videoId),
+      handleLicenseChange: (videoId) => this.handleLicenseChange(videoId),
+      handleDefaultLanguageChange: (videoId) => this.handleDefaultLanguageChange(videoId),
+      handleSyntheticMediaChange: (videoId) => this.handleSyntheticMediaChange(videoId),
+      autoResizeTextarea: (textarea) => this.autoResizeTextarea(textarea),
+      renderTagsContainer: (videoId) => this.renderTagsContainer(videoId),
+      updateTagsCounter: (videoId) => this.updateTagsCounter(videoId),
+      checkForChanges: (videoId) => this.checkForChanges(videoId)
+    });
 
-      const tempData: TemporaryChangesData = JSON.parse(tempDataStr);
-      let restoredCount = 0;
-
-      Object.entries(tempData.changed).forEach(([videoId, formData]) => {
-        const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
-        const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
-        const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
-        const categoryEl = document.getElementById(`category-${videoId}`) as HTMLSelectElement;
-        const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
-
-        if (titleEl && formData.title !== titleEl.value) {
-          titleEl.value = formData.title;
-          this.handleTitleChange(videoId);
-        }
-
-        if (descriptionEl && formData.description !== descriptionEl.value) {
-          descriptionEl.value = formData.description;
-          this.handleDescriptionChange(videoId);
-          this.autoResizeTextarea(descriptionEl);
-        }
-
-        if (privacyEl && formData.privacy_status !== privacyEl.value) {
-          privacyEl.value = formData.privacy_status;
-          this.handlePrivacyChange(videoId);
-        }
-
-        if (categoryEl && formData.category_id !== categoryEl.value) {
-          this.setSelectValuePreservingChoice(categoryEl, formData.category_id);
-          this.handleCategoryChange(videoId);
-        }
-
-        if (languageEl && formData.defaultAudioLanguage !== languageEl.value) {
-          this.setSelectValuePreservingChoice(languageEl, formData.defaultAudioLanguage || '');
-          this.handleLanguageChange(videoId);
-        }
-
-        // Restore the later-cycle editable fields. Each is tolerant of older snapshots that
-        // lack the key (the `in` check leaves the input untouched) and is guarded on the
-        // input existing and the value actually differing, mirroring the blocks above.
-        if ('recording_date' in formData) {
-          const recordingDateEl = document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null;
-          const restored = formData.recording_date || '';
-          if (recordingDateEl && recordingDateEl.value !== restored) {
-            recordingDateEl.value = restored;
-            this.handleRecordingDateChange(videoId);
-          }
-        }
-
-        if ('latitude' in formData || 'longitude' in formData) {
-          const latEl = document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null;
-          const lngEl = document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null;
-          let locationChanged = false;
-          if (latEl && 'latitude' in formData && latEl.value !== (formData.latitude || '')) {
-            latEl.value = formData.latitude || '';
-            locationChanged = true;
-          }
-          if (lngEl && 'longitude' in formData && lngEl.value !== (formData.longitude || '')) {
-            lngEl.value = formData.longitude || '';
-            locationChanged = true;
-          }
-          if (locationChanged) {
-            this.handleLocationChange(videoId);
-          }
-        }
-
-        if ('license' in formData) {
-          const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement | null;
-          const restored = formData.license || 'youtube';
-          if (licenseEl && licenseEl.value !== restored) {
-            licenseEl.value = restored;
-            this.handleLicenseChange(videoId);
-          }
-        }
-
-        if ('default_language' in formData) {
-          const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
-          const restored = formData.default_language || '';
-          if (defaultLangEl && defaultLangEl.value !== restored) {
-            this.setSelectValuePreservingChoice(defaultLangEl, restored);
-            this.handleDefaultLanguageChange(videoId);
-          }
-        }
-
-        if ('contains_synthetic_media' in formData) {
-          const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement | null;
-          const restored = formData.contains_synthetic_media === true;
-          if (syntheticEl && syntheticEl.checked !== restored) {
-            syntheticEl.checked = restored;
-            this.handleSyntheticMediaChange(videoId);
-          }
-        }
-
-        if (formData.tags && formData.tags.length > 0) {
-          const video = this.getVideo(videoId);
-          if (video) {
-            video.tags = [...formData.tags];
-            this.renderTagsContainer(videoId);
-            this.updateTagsCounter(videoId);
-            // Re-evaluate change state directly. handleTagChange only inspects the
-            // (now empty) tag input and would not mark a tags-only restore as changed.
-            this.checkForChanges(videoId);
-          }
-        }
-
-        restoredCount++;
-      });
-
-      localStorage.removeItem(this.TEMP_CHANGES_KEY);
-
-      if (restoredCount > 0) {
-        this.showStatus(rendererI18n.t('status.temporaryChangesRestored', { count: restoredCount }), 'info');
-        console.log('Restored temporary changes for', restoredCount, 'videos');
-      }
-    } catch (error) {
-      console.error('Failed to restore temporary changes:', error);
-      localStorage.removeItem(this.TEMP_CHANGES_KEY);
+    if (restoredCount > 0) {
+      this.showStatus(rendererI18n.t('status.temporaryChangesRestored', { count: restoredCount }), 'info');
     }
   }
 
   private clearTemporaryChanges(): void {
-    localStorage.removeItem(this.TEMP_CHANGES_KEY);
+    tempChanges.clearTemporaryChanges();
   }
 }
 
