@@ -828,7 +828,10 @@ class YouTubeBatchManager {
 
       this.originalVideosState.clear();
       videos.forEach(video => {
-        this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
+        // Deep snapshot: nested objects (statistics/thumbnails/processing_progress)
+        // must not be shared with the live record, or a future in-place mutation
+        // would silently corrupt the change-detection baseline (B12).
+        this.originalVideosState.set(video.id, structuredClone(video));
       });
 
       this.sortAllVideos();
@@ -1667,7 +1670,9 @@ class YouTubeBatchManager {
           this.state.changedVideos.add(video.id);
         }
       } else {
-        this.originalVideosState.set(video.id, { ...video, tags: [...(video.tags || [])] });
+        // Deep snapshot (see loadVideos): keep the baseline independent of the
+        // live record's nested objects (B12).
+        this.originalVideosState.set(video.id, structuredClone(video));
       }
     });
 
@@ -2260,7 +2265,9 @@ class YouTubeBatchManager {
       if (result.success) {
         Object.assign(video, updates);
 
-        this.originalVideosState.set(videoId, { ...video, tags: [...(video.tags || [])] });
+        // Deep snapshot (see loadVideos): keep the baseline independent of the
+        // live record's nested objects (B12).
+        this.originalVideosState.set(videoId, structuredClone(video));
 
         const videoTitleEl = document.querySelector(`[data-video-id="${videoId}"] .video-title`);
         if (videoTitleEl) {

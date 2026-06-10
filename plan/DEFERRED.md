@@ -77,15 +77,14 @@ Plan 07 T1–T3 and are not deferrable. Repo policy still binds these when picke
 (GPG-signed commits, conventional + gitmoji, no `--no-verify`, no force-push, latest
 toolchain).
 
-## B12 — `originalVideosState` shallow snapshot shares nested objects
+## B12 — `originalVideosState` shallow snapshot shares nested objects — RESOLVED
 - Severity/Confidence: LOW / Medium.
-- Citation: `src/app.ts:737,1492,1984`.
-- Reason: latent only — no current code mutates `statistics`/`thumbnails`/
-  `processing_progress` in place, so change-detection is correct today. A defensive deep
-  snapshot adds cost/churn without fixing an observed bug. Not a correctness/data-loss
-  finding at present.
-- Exit criterion: re-open if any code begins mutating those nested objects in place, or
-  when the A11 render/state refactor lands.
+- Citation: `src/app.ts:737,1492,1984` (now `loadVideos`/`importVideoData`/`updateVideo`).
+- Resolution: all three baseline-snapshot sites (load, import, save-success) now use
+  `structuredClone(video)` instead of `{ ...video, tags: [...] }`, so nested objects
+  (statistics/thumbnails/processing_progress) are deep-copied and can never be shared
+  with the live record. Change-detection verified in browser (edit → marked changed,
+  revert → unmarked).
 
 ## B14 — `<html lang>` static `en`, updated only by JS post-init
 - Severity/Confidence: LOW / Medium.
