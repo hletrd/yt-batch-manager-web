@@ -64,5 +64,19 @@ YouTube-side), but a correctness regression → scheduled in Plan 11; nothing ne
 All prior A*/B*/C*/D*/E* findings re-verified fixed/deferred. Derived from
 `.context/reviews/_aggregate-cycle6.md`.
 
+## Cycle 7 note (convergence)
+Re-reviewed the cycle-5/6 changed surface (temporary-changes save/restore, change
+detection, `updateVideo` collector, `parseCoordInput`, and the `recordingDetails`
+request-build path) and its cross-field interactions. The cycle-6 F1 fix (Plan 11)
+re-verified present, correct, and complete: `TemporaryFormData` carries all six newer
+fields, `saveTemporaryChanges` includes them only when the input exists, and
+`restoreTemporaryChanges` restores them guarded by an `in`/value-differs check and
+re-runs change detection. No genuinely NEW finding — gates all green (eslint 0, tsc 0,
+build OK) and i18n parity holds (131/131). Edge cases examined (save-guard element set,
+coordinate clear-on-save, lat/lng/date read-back, untrimmed restore compare) are all
+either no-ops or consistent with the documented cycle-5 part-replace-avoidance design.
+The repo is in a CONVERGED state: NEW_FINDINGS = 0, nothing scheduled, nothing newly
+deferred, COMMITS = 0. Derived from `.context/reviews/_aggregate-cycle7.md`.
+
 ## Status legend
 `[ ]` todo · `[~]` in progress · `[x]` done · `[D]` deferred (see DEFERRED.md)
