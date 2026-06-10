@@ -32,21 +32,27 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
 * Edit video titles and descriptions in a single page, which YouTube does not allow.
   * YouTube forces a very user-unfriendly experiences, where you have to go to each video page to edit the title and description, and then save it.
 * Bulk-edit privacy status, category, audio language, and tags as well.
+* Set the recording date and recording location (latitude/longitude) per video, with a use-current-location button and a view-on-map link.
+* Change the license (Standard YouTube License / Creative Commons) and the title/description language.
 * Toggle the "altered or synthetic content" (AI) disclosure per video.
 * Copy a video's tags to the clipboard with one click.
-* Likely YouTube Shorts (3 minutes or shorter) are flagged with a badge.
-* Save/load video data to/from local JSON files for offline editing and backup.
+* Likely YouTube Shorts (vertical/square and 3 minutes or shorter) are flagged with a badge.
+* Loads every video in the channel, not just the most recent ones.
+* Save/load video data to/from local JSON files for offline editing and backup. Exports include every editable field (unset values as `null`) so the file doubles as a fill-in template; imported backups are validated and sanitized before anything is rendered or saved.
 * Stays signed in across reloads — the session is restored automatically, so you don't have to log in again every hour.
 
 ## 기능 (한국어)
 
 * 유튜브 채널의 영상 하나하나를 각각 열지 않아도 한 번에 영상 제목과 설명을 편집할 수 있습니다.
   * 이거 유튜브 Studio 웹페이지나 YT Studio 앱에서는 안 됩니다. 대체 왜 안 되는지 모르겠습니다.
-* 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다.
+* 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다. 내보낸 JSON에는 모든 편집 가능 항목이 포함되며(미설정 값은 `null`), 불러온 백업은 렌더링·저장 전에 검증/정제됩니다.
 * 영상 공개 설정 / 카테고리 / 언어 / 태그 등도 한 번에 편집할 수 있습니다.
+* 영상별 촬영일과 촬영 장소(위도/경도)를 설정할 수 있습니다. 현재 위치 버튼과 지도에서 보기 링크도 제공됩니다.
+* 라이선스(표준 YouTube / 크리에이티브 커먼즈)와 제목·설명 언어를 변경할 수 있습니다.
 * 영상별로 '변경되거나 합성된 콘텐츠(AI)' 공개 여부를 설정할 수 있습니다.
 * 버튼 한 번으로 영상의 태그를 클립보드에 복사할 수 있습니다.
-* 쇼츠로 추정되는 영상(3분 이하)에는 배지가 표시됩니다.
+* 쇼츠로 추정되는 영상(세로/정사각형이면서 3분 이하)에는 배지가 표시됩니다.
+* 최근 영상만이 아니라 채널의 모든 영상을 불러옵니다.
 * 새로고침하거나 다시 접속해도 로그인이 유지되어, 한 시간마다 다시 로그인할 필요가 없습니다.
 
 ---

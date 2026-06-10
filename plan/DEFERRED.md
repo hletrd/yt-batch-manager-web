@@ -42,11 +42,11 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Reason: doc pages are predominantly English; bilingual `lang` switching for static generated docs is low value. Main-app lang (A7) is fixed in Plan 02 T1.
 - Exit criterion: if generated docs become per-language, or a localization pass is undertaken.
 
-## A18 / Plan 06 T4 — PRIVACY.md contact address looks like a placeholder
+## A18 / Plan 06 T4 — PRIVACY.md contact address looks like a placeholder — RESOLVED
 - Severity/Confidence: MEDIUM / Medium.
-- Citation: `PRIVACY.md:123` (`01@0101010101.com`).
-- Reason: NOT a code/security/data-loss issue; it is published-content requiring the maintainer's real contact address — cannot be invented by the agent. (Repo has no rule forbidding placeholder contacts, so deferral is permitted as it is a docs/content decision, not security/correctness.)
-- Exit criterion: maintainer supplies the correct monitored contact email.
+- Resolution: the maintainer confirmed `01@0101010101.com` IS the real monitored contact
+  address (not a placeholder). It is now used consistently in both PRIVACY.md and
+  TERMS.md (exit criterion met).
 
 ## A15 — OAuth refresh token in localStorage
 - Severity/Confidence: LOW / High.
@@ -109,12 +109,11 @@ toolchain).
 - Resolution: the dead `batchUpdateVideos` method (no call sites anywhere in the repo)
   was removed from `src/youtube-api.ts`. No behavior change; tsc/eslint/build all green.
 
-## B17 — README lacks an import trust-model note
+## B17 — README lacks an import trust-model note — RESOLVED
 - Severity/Confidence: INFO / Medium.
-- Citation: README Features / file-operations.
-- Reason: documentation-only, and only meaningful once B1/B2 sanitization ships (so the
-  note is accurate). INFO severity. Pair with B1/B2 in a later docs pass.
-- Exit criterion: after B1/B2 fixes are merged, add a one-line import-sanitization note.
+- Resolution: the README Features section now states that imported backups are validated
+  and sanitized before anything is rendered or saved (B1/B2 sanitization shipped earlier,
+  so the note is accurate). Done in the post-convergence docs pass.
 
 ---
 
@@ -158,13 +157,9 @@ MEDIUM (E2) are NOT deferred — both are addressed in Plan 10. Repo policy stil
 work when picked up (GPG-signed commits, conventional + gitmoji, no `--no-verify`, no
 force-push, latest toolchain).
 
-## E3 — README feature list omits the newest editable fields
+## E3 — README feature list omits the newest editable fields — RESOLVED
 - Severity/Confidence: LOW / INFO (Medium).
-- Citation: `README.md` Features section — no mention of recording date/location, license,
-  or title/description language editing.
-- Reason for deferral: documentation-completeness only; not security/correctness/data-loss.
-  Matches the B17 docs-pass deferral precedent (group docs updates into a single later
-  pass once the feature set settles). No repo rule forbids omitting in-progress features
-  from the README.
-- Exit criterion: the next docs pass adds the newest editable-field list to the README
-  feature section.
+- Resolution: the README Features sections (EN + KO) now document recording
+  date/location editing, license and title/description language, the vertical-aware
+  Shorts badge, full-channel loading, and the complete (null-including) JSON backup
+  template. Done in the post-convergence docs pass (exit criterion met).
