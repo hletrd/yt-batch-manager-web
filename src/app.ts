@@ -1,7 +1,8 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI } from './youtube-api.js';
-import type { VideoData, ThumbnailData } from './types.js';
+import type { VideoData } from './types.js';
 import { arraysEqual, formatDuration, formatNumber, isLikelyShort, parseCoordInput, publishedTime } from './utils/format.js';
+import { escapeHtml, escapeHtmlAttribute, sanitizeImageUrl, sanitizeThumbnailMap } from './utils/html.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -414,7 +415,7 @@ class YouTubeBatchManager {
               <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="video-id-link">
                 https://youtu.be/${video.id}
               </a>
-              <div class="video-title">${this.escapeHtml(video.title)}</div>
+              <div class="video-title">${escapeHtml(video.title)}</div>
               <div class="video-published">
                 <span class="video-published-text" data-i18n="app.published">Published</span> ${video.published_at.substring(0, 10)}
                 ${video.duration ? `<span class="video-duration">${formatDuration(video.duration)}</span>` : ''}
@@ -454,7 +455,7 @@ class YouTubeBatchManager {
                 </div>
                 <div class="recording-date-control">
                   <label for="recording-date-${video.id}" data-i18n="video.recordingDate">Recording date</label>
-                  <input type="date" class="recording-date-input" id="recording-date-${video.id}" value="${this.escapeHtmlAttribute(video.recording_date || '')}" onchange="app.handleRecordingDateChange('${video.id}')">
+                  <input type="date" class="recording-date-input" id="recording-date-${video.id}" value="${escapeHtmlAttribute(video.recording_date || '')}" onchange="app.handleRecordingDateChange('${video.id}')">
                 </div>
                 <div class="recording-location-control">
                   <label data-i18n="video.recordingLocation">Location</label>
@@ -528,7 +529,7 @@ class YouTubeBatchManager {
               type="text"
               class="form-control title-input"
               id="title-${video.id}"
-              value="${this.escapeHtml(video.title)}"
+              value="${escapeHtml(video.title)}"
               oninput="app.handleTitleChange('${video.id}'); app.updateTitleCounter('${video.id}')"
             />
           </div>
@@ -540,7 +541,7 @@ class YouTubeBatchManager {
               class="form-control"
               id="description-${video.id}"
               oninput="app.handleDescriptionChange('${video.id}'); app.handleTextareaResize(this); app.updateDescriptionCounter('${video.id}')"
-            >${this.escapeHtml(video.description)}</textarea>
+            >${escapeHtml(video.description)}</textarea>
           </div>
 
           <div class="form-group">
@@ -558,8 +559,8 @@ class YouTubeBatchManager {
             <div class="tags-container" id="tags-container-${video.id}" onclick="app.focusTagInput('${video.id}')">
               ${(video.tags || []).map(tag => `
                 <div class="tag-chip">
-                  <span class="tag-text" title="${this.escapeHtmlAttribute(tag)}">${this.escapeHtml(tag)}</span>
-                  <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(video.id)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
+                  <span class="tag-text" title="${escapeHtmlAttribute(tag)}">${escapeHtml(tag)}</span>
+                  <button type="button" class="tag-remove" data-video-id="${escapeHtmlAttribute(video.id)}" data-tag="${escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
                 </div>
               `).join('')}
               <input
@@ -626,7 +627,7 @@ class YouTubeBatchManager {
     // Show the clean themed placeholder instead until processing completes.
     if (video.upload_status && video.upload_status !== 'processed') {
       return `
-      <img src="${this.escapeHtmlAttribute(this.defaultThumbnail)}" alt="Video thumbnail" loading="lazy" />
+      <img src="${escapeHtmlAttribute(this.defaultThumbnail)}" alt="Video thumbnail" loading="lazy" />
     `;
     }
 
@@ -648,7 +649,7 @@ class YouTubeBatchManager {
       if (thumb?.url && sizesMap[key]) {
         // Attribute-escape each URL before it enters the srcset attribute so a
         // crafted (e.g. imported) URL cannot break out and inject a handler.
-        srcsetParts.push(`${this.escapeHtmlAttribute(thumb.url)} ${sizesMap[key]}w`);
+        srcsetParts.push(`${escapeHtmlAttribute(thumb.url)} ${sizesMap[key]}w`);
       }
     });
 
@@ -657,7 +658,7 @@ class YouTubeBatchManager {
 
     return `
       <img
-        src="${this.escapeHtmlAttribute(fallbackUrl)}"
+        src="${escapeHtmlAttribute(fallbackUrl)}"
         ${srcset ? `srcset="${srcset}"` : ''}
         ${srcset ? `sizes="${sizes}"` : ''}
         alt="Video thumbnail"
@@ -1188,9 +1189,9 @@ class YouTubeBatchManager {
     // this consistent with the rest of the render path and prevents a title/id
     // containing &, <, >, or " from breaking the attribute or the option list.
     const options = Object.values(this.videoCategories).map(category =>
-      `<option value="${this.escapeHtmlAttribute(category.id)}" ${category.id === selectedCategoryId ? 'selected' : ''}>${this.escapeHtml(category.title)}</option>`
+      `<option value="${escapeHtmlAttribute(category.id)}" ${category.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(category.title)}</option>`
     );
-    return `<option value="">${this.escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}`;
+    return `<option value="">${escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}`;
   }
 
   private async loadI18nLanguages(): Promise<void> {
@@ -1219,9 +1220,9 @@ class YouTubeBatchManager {
     // generateCategoryOptions). Data is from i18nLanguages.list/fallback, but
     // escaping keeps the render path consistent and special-char-safe.
     const options = Object.values(this.i18nLanguages).map(language =>
-      `<option value="${this.escapeHtmlAttribute(language.id)}" ${language.id === selectedLanguageId ? 'selected' : ''}>${this.escapeHtml(language.name)}</option>`
+      `<option value="${escapeHtmlAttribute(language.id)}" ${language.id === selectedLanguageId ? 'selected' : ''}>${escapeHtml(language.name)}</option>`
     );
-    return `<option value="">${this.escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
+    return `<option value="">${escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
   }
 
   toggleMobileMenu(): void {
@@ -1357,56 +1358,6 @@ class YouTubeBatchManager {
         element.addEventListener('input', handleInputEdit);
       }
     });
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // Escape a value for safe use inside a double-quoted HTML attribute. Unlike
-  // escapeHtml (which targets text-node content), this also encodes the double
-  // quote so the value cannot terminate the attribute, and is used for data-*
-  // attributes that carry user-controlled strings (e.g. tag values). Tag values
-  // are NEVER interpolated into inline JS handlers anymore; they are read back
-  // from data-* via delegated listeners.
-  private escapeHtmlAttribute(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  // Accept an image URL only if it is a string with a safe scheme (http/https or a
-  // data: image). Anything else (javascript:, attribute-breakout strings, non-strings)
-  // is rejected and the caller falls back to the default thumbnail. Used to bound
-  // attacker-controlled URLs from imported backups before they reach src/srcset.
-  private sanitizeImageUrl(url: unknown): string {
-    if (typeof url !== 'string' || url.length === 0) return '';
-    const trimmed = url.trim();
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    if (/^data:image\//i.test(trimmed)) return trimmed;
-    return '';
-  }
-
-  private sanitizeThumbnailMap(thumbnails: unknown): Record<string, ThumbnailData> {
-    const clean: Record<string, ThumbnailData> = {};
-    if (!thumbnails || typeof thumbnails !== 'object') return clean;
-    for (const [key, value] of Object.entries(thumbnails as Record<string, unknown>)) {
-      if (!value || typeof value !== 'object') continue;
-      const t = value as { url?: unknown; width?: unknown; height?: unknown };
-      const safeUrl = this.sanitizeImageUrl(t.url);
-      if (!safeUrl) continue;
-      clean[key] = {
-        url: safeUrl,
-        width: typeof t.width === 'number' ? t.width : 0,
-        height: typeof t.height === 'number' ? t.height : 0
-      };
-    }
-    return clean;
   }
 
   async saveAllChanges(): Promise<void> {
@@ -1629,8 +1580,8 @@ class YouTubeBatchManager {
       // Thumbnail URLs flow into src/srcset attributes. Keep them only when they
       // are strings with a safe scheme; non-conforming values are dropped so the
       // default thumbnail is used (see also escapeHtmlAttribute in the renderer).
-      thumbnail_url: this.sanitizeImageUrl(video.thumbnail_url),
-      thumbnails: this.sanitizeThumbnailMap(video.thumbnails)
+      thumbnail_url: sanitizeImageUrl(video.thumbnail_url),
+      thumbnails: sanitizeThumbnailMap(video.thumbnails)
     }));
 
     // Preserve any existing YouTube baseline so we can detect which imported
@@ -2093,8 +2044,8 @@ class YouTubeBatchManager {
 
     const tagsHtml = (video.tags || []).map(tag => `
       <div class="tag-chip">
-        <span class="tag-text" title="${this.escapeHtmlAttribute(tag)}">${this.escapeHtml(tag)}</span>
-        <button type="button" class="tag-remove" data-video-id="${this.escapeHtmlAttribute(videoId)}" data-tag="${this.escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
+        <span class="tag-text" title="${escapeHtmlAttribute(tag)}">${escapeHtml(tag)}</span>
+        <button type="button" class="tag-remove" data-video-id="${escapeHtmlAttribute(videoId)}" data-tag="${escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
       </div>
     `).join('');
 
@@ -2107,7 +2058,7 @@ class YouTubeBatchManager {
         type="text"
         class="tag-input"
         id="tag-input-${videoId}"
-        placeholder="${this.escapeHtmlAttribute(placeholder)}"
+        placeholder="${escapeHtmlAttribute(placeholder)}"
         onkeydown="app.handleTagKeydown(event, '${videoId}')"
         oninput="app.handleTagChange('${videoId}')"
         onpaste="app.handleTagPaste(event, '${videoId}')"
