@@ -6,6 +6,7 @@ import { escapeHtml, escapeHtmlAttribute, sanitizeImageUrl, sanitizeThumbnailMap
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderVideoCardHtml } from './video-card.js';
+import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showStatus } from './ui-feedback.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -76,106 +77,6 @@ class YouTubeBatchManager {
 
   private getVideo(videoId: string): VideoData | undefined {
     return this.videoIndex.get(videoId);
-  }
-
-  private showStatus(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
-    const statusEl = document.getElementById('status-message');
-    if (statusEl) {
-      statusEl.textContent = message;
-      statusEl.className = `status-message status-${type} show`;
-
-      // Real timer (kept, A28): the status toast auto-hides after 3s by design.
-      setTimeout(() => {
-        statusEl.classList.remove('show');
-      }, 3000);
-    }
-  }
-
-  private showAuthenticationPrompt(): void {
-    const videoList = document.getElementById('video-list');
-    if (!videoList) return;
-
-    videoList.innerHTML = `
-      <div class="auth-prompt">
-        <div class="auth-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        </div>
-        <h3 data-i18n="auth.title">YouTube Authentication Required</h3>
-        <p data-i18n="auth.description">Please authenticate with your YouTube account to manage your videos.</p>
-        <button class="btn btn-primary auth-button" onclick="app.authenticate()" data-i18n="auth.button">
-          Authenticate with YouTube
-        </button>
-      </div>
-    `;
-
-    rendererI18n.updatePageTexts();
-  }
-
-  // Shared "no credentials" notice (A26): previously duplicated verbatim in
-  // renderVideos and initializeApp. The template's indentation deliberately
-  // matches the original initializeApp block so the rendered innerHTML stays
-  // byte-identical with the pre-refactor output.
-  private renderNoCredentials(container: HTMLElement): void {
-    container.innerHTML = `
-          <div class="no-credentials">
-            <div class="info-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <h3 data-i18n="credentials.notFound">No Credentials Found</h3>
-            <p data-i18n="credentials.notFoundDescription">Please ensure that credentials.json is available at the root of your web server.</p>
-          </div>
-        `;
-  }
-
-  private showLoadingOverlay(mainText?: string, subText?: string): void {
-    const overlay = document.getElementById('loading-overlay');
-    const mainTextEl = document.getElementById('loading-text');
-    const subTextEl = document.getElementById('loading-subtext');
-
-    if (overlay) {
-      overlay.style.display = 'flex';
-      overlay.setAttribute('aria-busy', 'true');
-      // Double rAF (A28): the first frame commits display:flex with the
-      // overlay still transparent; adding .show on the next frame then
-      // reliably triggers the CSS opacity transition (a same-frame add would
-      // skip it). Replaces a 10ms setTimeout doing the same job by luck.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          overlay.classList.add('show');
-        });
-      });
-    }
-
-    if (mainTextEl && mainText) {
-      mainTextEl.textContent = mainText;
-    }
-
-    if (subTextEl && subText) {
-      subTextEl.textContent = subText;
-    }
-  }
-
-  private hideLoadingOverlay(): void {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) {
-      overlay.classList.remove('show');
-      overlay.setAttribute('aria-busy', 'false');
-      // Real timer (kept, A28): waits out the overlay's 0.3s CSS transition
-      // before removing it from layout; a transitionend listener can be
-      // skipped entirely (reduced-motion, interrupted transition) and would
-      // then leave the overlay blocking the page.
-      setTimeout(() => {
-        overlay.style.display = 'none';
-      }, 300);
-    }
   }
 
   private markChanged(videoId: string): void {
@@ -344,10 +245,10 @@ class YouTubeBatchManager {
     if (videosToAdd.length === 0) {
       if (this.state.allVideos.length === 0) {
         if (!this.youtubeAPI.isLoggedIn() && this.youtubeAPI.hasCredentials()) {
-          this.showAuthenticationPrompt();
+          showAuthenticationPrompt();
           return;
         } else if (!this.youtubeAPI.hasCredentials()) {
-          this.renderNoCredentials(videoList);
+          renderNoCredentials(videoList);
           rendererI18n.updatePageTexts();
           return;
         } else {
@@ -416,11 +317,11 @@ class YouTubeBatchManager {
 
   async authenticate(): Promise<void> {
     if (!this.youtubeAPI.hasCredentials()) {
-      this.showStatus(rendererI18n.t('status.credentialsNotLoaded'), 'error');
+      showStatus(rendererI18n.t('status.credentialsNotLoaded'), 'error');
       return;
     }
 
-    this.showLoadingOverlay(rendererI18n.t('loading.authenticating'), rendererI18n.t('loading.authenticatingSubtext'));
+    showLoadingOverlay(rendererI18n.t('loading.authenticating'), rendererI18n.t('loading.authenticatingSubtext'));
 
     try {
       this.isOAuthRedirecting = true;
@@ -429,24 +330,24 @@ class YouTubeBatchManager {
       const result = await this.youtubeAPI.authenticate();
       if (result.success) {
         this.isOAuthRedirecting = false;
-        this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
+        showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
         this.updateAuthDependentButtons();
         await this.loadVideoMetadata();
         await this.loadVideos();
         this.restoreTemporaryChanges();
       } else if (result.error && !result.error.includes('Redirecting')) {
         this.isOAuthRedirecting = false;
-        this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
+        showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
         this.updateAuthDependentButtons();
-        this.showAuthenticationPrompt();
+        showAuthenticationPrompt();
       }
     } catch (error) {
       this.isOAuthRedirecting = false;
-      this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
       this.updateAuthDependentButtons();
-      this.showAuthenticationPrompt();
+      showAuthenticationPrompt();
     } finally {
-      this.hideLoadingOverlay();
+      hideLoadingOverlay();
     }
   }
 
@@ -495,9 +396,9 @@ class YouTubeBatchManager {
     if (!this.youtubeAPI.isLoggedIn()) {
       this.updateAuthDependentButtons();
       if (this.youtubeAPI.hasCredentials()) {
-        this.showAuthenticationPrompt();
+        showAuthenticationPrompt();
       } else {
-        this.showStatus(rendererI18n.t('status.credentialsNotLoaded'), 'error');
+        showStatus(rendererI18n.t('status.credentialsNotLoaded'), 'error');
       }
       return;
     }
@@ -511,12 +412,12 @@ class YouTubeBatchManager {
         const cachedVideos = this.loadVideosFromCache();
         if (cachedVideos) {
           videos = cachedVideos;
-          this.showLoadingOverlay(rendererI18n.t('loading.loadingFromCache'), rendererI18n.t('loading.loadingFromCacheSubtext'));
+          showLoadingOverlay(rendererI18n.t('loading.loadingFromCache'), rendererI18n.t('loading.loadingFromCacheSubtext'));
         }
       }
 
       if (videos.length === 0 || forceRefresh) {
-        this.showLoadingOverlay(rendererI18n.t('loading.loadingFromYouTube'), rendererI18n.t('loading.loadingFromYouTubeSubtext'));
+        showLoadingOverlay(rendererI18n.t('loading.loadingFromYouTube'), rendererI18n.t('loading.loadingFromYouTubeSubtext'));
         videos = await this.youtubeAPI.getVideos();
 
         this.saveVideosToCache(videos);
@@ -540,19 +441,19 @@ class YouTubeBatchManager {
       await this.renderVideos(true);
 
       const cacheStatus = forceRefresh ? '' : ' ' + rendererI18n.t('status.cached');
-      this.showStatus(rendererI18n.t('status.videosLoaded', { count: videos.length }) + cacheStatus, 'success');
+      showStatus(rendererI18n.t('status.videosLoaded', { count: videos.length }) + cacheStatus, 'success');
     } catch (error) {
       console.error('Error loading videos:', error);
       this.updateAuthDependentButtons();
       const msg = error instanceof Error ? error.message : 'Unknown error';
       if (/quotaExceeded|dailyLimitExceeded/i.test(msg)) {
-        this.showStatus(rendererI18n.t('status.quotaExceeded'), 'error');
+        showStatus(rendererI18n.t('status.quotaExceeded'), 'error');
       } else {
-        this.showStatus(rendererI18n.t('status.failedToLoadVideos') + ': ' + msg, 'error');
+        showStatus(rendererI18n.t('status.failedToLoadVideos') + ': ' + msg, 'error');
       }
     } finally {
       this.state.isLoading = false;
-      this.hideLoadingOverlay();
+      hideLoadingOverlay();
     }
   }
 
@@ -766,13 +667,13 @@ class YouTubeBatchManager {
     }
 
     if (code && state) {
-      this.showLoadingOverlay(rendererI18n.t('loading.processingAuthentication'), rendererI18n.t('loading.processingAuthSubtext'));
+      showLoadingOverlay(rendererI18n.t('loading.processingAuthentication'), rendererI18n.t('loading.processingAuthSubtext'));
 
       try {
         const result = await this.youtubeAPI.authenticate();
         if (result.success) {
           this.isOAuthRedirecting = false;
-          this.showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
+          showStatus(rendererI18n.t('status.authenticationSuccessful'), 'success');
           this.updateAuthDependentButtons();
           await this.loadVideoMetadata();
           await this.loadVideos();
@@ -781,35 +682,35 @@ class YouTubeBatchManager {
           window.history.replaceState({}, document.title, window.location.pathname);
         } else {
           this.isOAuthRedirecting = false;
-          this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
+          showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (result.error || 'Unknown error'), 'error');
           this.updateAuthDependentButtons();
           window.history.replaceState({}, document.title, window.location.pathname);
-          this.showAuthenticationPrompt();
+          showAuthenticationPrompt();
         }
       } catch (error) {
         this.isOAuthRedirecting = false;
-        this.showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+        showStatus(rendererI18n.t('status.authenticationFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
         this.updateAuthDependentButtons();
         window.history.replaceState({}, document.title, window.location.pathname);
-        this.showAuthenticationPrompt();
+        showAuthenticationPrompt();
       } finally {
-        this.hideLoadingOverlay();
+        hideLoadingOverlay();
       }
     } else if (this.youtubeAPI.isLoggedIn()) {
       console.log('User is already logged in, loading data...');
       console.log('Auth status:', this.youtubeAPI.getAuthStatus());
-      this.showStatus(rendererI18n.t('status.credentialsLoaded'), 'success');
+      showStatus(rendererI18n.t('status.credentialsLoaded'), 'success');
       this.updateAuthDependentButtons();
       await this.loadVideoMetadata();
       await this.loadVideos();
     } else if (this.youtubeAPI.hasCredentials()) {
       this.updateAuthDependentButtons();
-      this.showAuthenticationPrompt();
+      showAuthenticationPrompt();
     } else {
       this.updateAuthDependentButtons();
       const videoList = document.getElementById('video-list');
       if (videoList) {
-        this.renderNoCredentials(videoList);
+        renderNoCredentials(videoList);
       }
     }
 
@@ -1046,12 +947,12 @@ class YouTubeBatchManager {
 
   async saveAllChanges(): Promise<void> {
     if (this.state.changedVideos.size === 0) {
-      this.showStatus(rendererI18n.t('status.noChangesToSave'), 'info');
+      showStatus(rendererI18n.t('status.noChangesToSave'), 'info');
       return;
     }
 
     if (this.batchSaveInProgress) {
-      this.showStatus(rendererI18n.t('status.saveInProgress'), 'info');
+      showStatus(rendererI18n.t('status.saveInProgress'), 'info');
       return;
     }
 
@@ -1065,7 +966,7 @@ class YouTubeBatchManager {
     let errorCount = 0;
     const errors: string[] = [];
 
-    this.showLoadingOverlay(
+    showLoadingOverlay(
       rendererI18n.t('status.savingBatch', { current: 1, total: changedVideosArray.length }),
       rendererI18n.t('status.processingVideo', { videoNumber: 1 })
     );
@@ -1087,7 +988,7 @@ class YouTubeBatchManager {
         continue;
       }
 
-      this.showLoadingOverlay(
+      showLoadingOverlay(
         rendererI18n.t('status.savingBatch', { current: i + 1, total: changedVideosArray.length }),
         rendererI18n.t('status.processingVideo', { videoNumber: i + 1 })
       );
@@ -1105,10 +1006,10 @@ class YouTubeBatchManager {
 
     this.batchSaveInProgress = false;
     this.skipCacheUpdates = false;
-    this.hideLoadingOverlay();
+    hideLoadingOverlay();
 
     if (successCount > 0) {
-      this.showStatus(
+      showStatus(
         rendererI18n.t('status.batchSaveComplete', {
           successful: successCount,
           failed: errorCount,
@@ -1119,7 +1020,7 @@ class YouTubeBatchManager {
 
       this.updateVideoCache();
     } else {
-      this.showStatus(
+      showStatus(
         rendererI18n.t('status.batchSaveFailed', { failed: errorCount }),
         'error'
       );
@@ -1134,7 +1035,7 @@ class YouTubeBatchManager {
 
   async downloadVideoInfo(): Promise<void> {
     if (this.state.allVideos.length === 0) {
-      this.showStatus(rendererI18n.t('status.noVideosToExport'), 'info');
+      showStatus(rendererI18n.t('status.noVideosToExport'), 'info');
       return;
     }
 
@@ -1150,9 +1051,9 @@ class YouTubeBatchManager {
       link.click();
 
       URL.revokeObjectURL(link.href);
-      this.showStatus(rendererI18n.t('status.videosExported', { count: this.state.allVideos.length }), 'success');
+      showStatus(rendererI18n.t('status.videosExported', { count: this.state.allVideos.length }), 'success');
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToExportVideos'), 'error');
+      showStatus(rendererI18n.t('status.failedToExportVideos'), 'error');
     }
   }
 
@@ -1193,28 +1094,28 @@ class YouTubeBatchManager {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
-        this.showLoadingOverlay(rendererI18n.t('app.loading'), rendererI18n.t('loading.importingData'));
+        showLoadingOverlay(rendererI18n.t('app.loading'), rendererI18n.t('loading.importingData'));
 
         try {
           const text = await file.text();
           const videoData = JSON.parse(text);
           await this.importVideoData(videoData);
         } catch {
-          this.showStatus(rendererI18n.t('status.failedToParseData'), 'error');
+          showStatus(rendererI18n.t('status.failedToParseData'), 'error');
         } finally {
-          this.hideLoadingOverlay();
+          hideLoadingOverlay();
         }
       };
 
       input.click();
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToSelectFile'), 'error');
+      showStatus(rendererI18n.t('status.failedToSelectFile'), 'error');
     }
   }
 
   async importVideoData(videoData: VideoData[]): Promise<void> {
     if (!Array.isArray(videoData)) {
-      this.showStatus(rendererI18n.t('status.invalidFileFormat'), 'error');
+      showStatus(rendererI18n.t('status.invalidFileFormat'), 'error');
       return;
     }
 
@@ -1231,7 +1132,7 @@ class YouTubeBatchManager {
     );
 
     if (videoData.length === 0) {
-      this.showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
+      showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
       return;
     }
 
@@ -1298,7 +1199,7 @@ class YouTubeBatchManager {
 
     await this.renderVideos(true);
     this.updateSaveAllButton();
-    this.showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
+    showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
   }
 
   // Shared logout core (A26): drop the API session via youtubeAPI.logout()
@@ -1341,7 +1242,7 @@ class YouTubeBatchManager {
   // blocks so the rendered innerHTML stays byte-identical.
   private showSignedOutVideoList(): void {
     if (this.youtubeAPI.hasCredentials()) {
-      this.showAuthenticationPrompt();
+      showAuthenticationPrompt();
     } else {
       const container = document.getElementById('video-list');
       if (container) {
@@ -1360,9 +1261,9 @@ class YouTubeBatchManager {
       this.updateAuthDependentButtons();
       this.resetChannelHeader();
       this.showSignedOutVideoList();
-      this.showStatus(rendererI18n.t('status.loggedOut'), 'success');
+      showStatus(rendererI18n.t('status.loggedOut'), 'success');
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToLogout'), 'error');
+      showStatus(rendererI18n.t('status.failedToLogout'), 'error');
       this.updateAuthDependentButtons();
     }
   }
@@ -1387,9 +1288,9 @@ class YouTubeBatchManager {
         container.innerHTML = '';
       }
 
-      this.showStatus(rendererI18n.t('status.cacheCleared'), 'success');
+      showStatus(rendererI18n.t('status.cacheCleared'), 'success');
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToClearCache'), 'error');
+      showStatus(rendererI18n.t('status.failedToClearCache'), 'error');
     }
   }
 
@@ -1400,9 +1301,9 @@ class YouTubeBatchManager {
       this.clearSessionAndVideoState();
       this.resetChannelHeader();
       this.showSignedOutVideoList();
-      this.showStatus(rendererI18n.t('status.credentialsRemoved'), 'success');
+      showStatus(rendererI18n.t('status.credentialsRemoved'), 'success');
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToRemoveCredentials'), 'error');
+      showStatus(rendererI18n.t('status.failedToRemoveCredentials'), 'error');
     }
   }
 
@@ -1419,19 +1320,19 @@ class YouTubeBatchManager {
         try {
           const result = await this.youtubeAPI.setCredentials(file);
           if (result.success) {
-            this.showStatus(rendererI18n.t('status.credentialsLoaded'), 'success');
+            showStatus(rendererI18n.t('status.credentialsLoaded'), 'success');
             await this.authenticate();
           } else {
-            this.showStatus(rendererI18n.t('status.failedToLoadCredentials') + ': ' + (result.error || 'Unknown error'), 'error');
+            showStatus(rendererI18n.t('status.failedToLoadCredentials') + ': ' + (result.error || 'Unknown error'), 'error');
           }
         } catch (error) {
-          this.showStatus(rendererI18n.t('status.failedToParseCredentialsFile') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+          showStatus(rendererI18n.t('status.failedToParseCredentialsFile') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
         }
       };
 
       input.click();
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToSelectFile'), 'error');
+      showStatus(rendererI18n.t('status.failedToSelectFile'), 'error');
     }
   }
 
@@ -1514,7 +1415,7 @@ class YouTubeBatchManager {
 
   useCurrentLocation(videoId: string): void {
     if (!navigator.geolocation) {
-      this.showStatus(rendererI18n.t('status.geolocationUnavailable'), 'error');
+      showStatus(rendererI18n.t('status.geolocationUnavailable'), 'error');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -1526,7 +1427,7 @@ class YouTubeBatchManager {
         this.checkForChanges(videoId);
       },
       () => {
-        this.showStatus(rendererI18n.t('status.geolocationFailed'), 'error');
+        showStatus(rendererI18n.t('status.geolocationFailed'), 'error');
       }
     );
   }
@@ -1535,7 +1436,7 @@ class YouTubeBatchManager {
     const lat = (document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value.trim();
     const lng = (document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value.trim();
     if (!lat || !lng) {
-      this.showStatus(rendererI18n.t('status.noLocationSet'), 'info');
+      showStatus(rendererI18n.t('status.noLocationSet'), 'info');
       return;
     }
     window.open(`https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lng)}`, '_blank', 'noopener');
@@ -1674,14 +1575,14 @@ class YouTubeBatchManager {
   async copyTags(videoId: string): Promise<void> {
     const tags = this.getCurrentTags(videoId);
     if (tags.length === 0) {
-      this.showStatus(rendererI18n.t('status.noTagsToCopy'), 'info');
+      showStatus(rendererI18n.t('status.noTagsToCopy'), 'info');
       return;
     }
     try {
       await navigator.clipboard.writeText(tags.join(', '));
-      this.showStatus(rendererI18n.t('status.tagsCopied', { count: tags.length }), 'success');
+      showStatus(rendererI18n.t('status.tagsCopied', { count: tags.length }), 'success');
     } catch {
-      this.showStatus(rendererI18n.t('status.failedToCopyTags'), 'error');
+      showStatus(rendererI18n.t('status.failedToCopyTags'), 'error');
     }
   }
 
@@ -1879,7 +1780,7 @@ class YouTubeBatchManager {
         }
 
         if (!suppressStatus) {
-          this.showStatus(rendererI18n.t('status.videoUpdated'), 'success');
+          showStatus(rendererI18n.t('status.videoUpdated'), 'success');
         }
 
         if (!this.skipCacheUpdates) {
@@ -1887,13 +1788,13 @@ class YouTubeBatchManager {
         }
       } else {
         if (!suppressStatus) {
-          this.showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
+          showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
         }
         this.checkForChanges(videoId);
       }
     } catch (error) {
       if (!suppressStatus) {
-        this.showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+        showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
       }
       this.checkForChanges(videoId);
     } finally {
@@ -1906,7 +1807,7 @@ class YouTubeBatchManager {
 
   async refreshVideos(): Promise<void> {
     if (!this.youtubeAPI.isLoggedIn()) {
-      this.showStatus(rendererI18n.t('status.authRequiredToRefresh'), 'error');
+      showStatus(rendererI18n.t('status.authRequiredToRefresh'), 'error');
       return;
     }
     console.log('Force refreshing videos from YouTube API...');
@@ -1955,7 +1856,7 @@ class YouTubeBatchManager {
     });
 
     if (restoredCount > 0) {
-      this.showStatus(rendererI18n.t('status.temporaryChangesRestored', { count: restoredCount }), 'info');
+      showStatus(rendererI18n.t('status.temporaryChangesRestored', { count: restoredCount }), 'info');
     }
   }
 
