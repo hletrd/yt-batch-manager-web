@@ -2,7 +2,6 @@ import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI } from './youtube-api.js';
 import type { VideoData } from './types.js';
 import { arraysEqual, parseCoordInput, publishedTime } from './utils/format.js';
-import { escapeHtml, escapeHtmlAttribute } from './utils/html.js';
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderVideoCardHtml } from './video-card.js';
@@ -10,6 +9,7 @@ import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, show
 import * as backup from './backup.js';
 import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
+import * as tags from './tags.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -36,6 +36,12 @@ class YouTubeBatchManager {
   // allVideos is (re)assigned so hot-path lookups in per-keystroke handlers are
   // O(1) instead of a linear scan over potentially hundreds of videos.
   private videoIndex: Map<string, VideoData> = new Map();
+  // App-state accessors handed to the extracted tag editor (src/tags.ts).
+  private tagDeps: tags.TagEditorDeps = {
+    getVideo: (videoId) => this.getVideo(videoId),
+    markChanged: (videoId) => this.markChanged(videoId),
+    checkForChanges: (videoId) => this.checkForChanges(videoId)
+  };
   private youtubeAPI: YouTubeAPI;
   private batchSaveInProgress: boolean = false;
   private skipCacheUpdates: boolean = false;
@@ -165,7 +171,7 @@ class YouTubeBatchManager {
     const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement;
     const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement;
 
-    const currentTags = this.getCurrentTags(videoId);
+    const currentTags = tags.getCurrentTags(videoId);
     const originalTags = this.getOriginalTags(videoId);
 
     return (
@@ -182,14 +188,6 @@ class YouTubeBatchManager {
       (defaultLangEl ? defaultLangEl.value : '') !== (savedDefaultLanguage || '') ||
       !arraysEqual(currentTags, originalTags)
     );
-  }
-
-  private getCurrentTags(videoId: string): string[] {
-    const tagsContainer = document.getElementById(`tags-container-${videoId}`);
-    if (!tagsContainer) return [];
-
-    const tagElements = tagsContainer.querySelectorAll('.tag-text');
-    return Array.from(tagElements).map(el => el.textContent || '');
   }
 
   // Textareas with a resize already scheduled for the next frame (A30). A
@@ -1243,24 +1241,11 @@ class YouTubeBatchManager {
   }
 
   updateTagsCounter(videoId: string): void {
-    const containerEl = document.getElementById(`tags-container-${videoId}`);
-    const counterEl = document.getElementById(`tags-counter-${videoId}`);
-    if (containerEl && counterEl) {
-      // YouTube limits tags by total character count (~500), not by number of
-      // tags. Count the combined length of all tag texts so the counter and its
-      // warning threshold match the real limit and the initial-render format.
-      const tagTexts = Array.from(containerEl.querySelectorAll('.tag-text'));
-      const usedChars = tagTexts.reduce((sum, el) => sum + (el.textContent || '').length, 0);
-      counterEl.textContent = `${usedChars}/500`;
-      counterEl.className = `tags-counter ${usedChars > 450 ? 'warning' : ''}`;
-    }
+    tags.updateTagsCounter(videoId);
   }
 
   focusTagInput(videoId: string): void {
-    const tagInput = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
-    if (tagInput) {
-      tagInput.focus();
-    }
+    tags.focusTagInput(videoId);
   }
 
   handleTitleChange(videoId: string): void {
@@ -1404,167 +1389,39 @@ class YouTubeBatchManager {
     }
   }
 
+  // Tag-editing entry points (A11): the implementations live in src/tags.ts;
+  // these stubs keep the inline-handler surface (app.handleTag*/addTag/
+  // removeTag/copyTags/processTagInput) unchanged.
   handleTagKeydown(event: KeyboardEvent, videoId: string): void {
-    const input = event.target as HTMLInputElement;
-
-    if (event.key === 'Enter' || event.key === ',') {
-      event.preventDefault();
-      this.processTagInput(videoId, input.value.trim());
-      input.value = '';
-    }
-
-    if (event.key === 'Backspace' && input.value === '' && input.selectionStart === 0) {
-      const tagsContainer = document.getElementById(`tags-container-${videoId}`);
-      const tagChips = tagsContainer?.querySelectorAll('.tag-chip');
-      if (tagChips && tagChips.length > 0) {
-        const lastTag = tagChips[tagChips.length - 1];
-        const tagText = lastTag.querySelector('.tag-text')?.textContent;
-        if (tagText) {
-          this.removeTag(videoId, tagText);
-        }
-      }
-    }
+    tags.handleTagKeydown(this.tagDeps, event, videoId);
   }
 
   handleTagChange(videoId: string): void {
-    const input = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
-    if (input && input.value.includes(',')) {
-      const tags = input.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-      input.value = '';
-      tags.forEach(tag => this.processTagInput(videoId, tag));
-    }
+    tags.handleTagChange(this.tagDeps, videoId);
   }
 
   processTagInput(videoId: string, inputValue: string): void {
-    if (!inputValue || inputValue.length === 0) return;
-
-    const tags = inputValue.split(',').map(tag => tag.trim()).filter(tag => tag && tag.length > 0);
-    tags.forEach(tag => this.addTag(videoId, tag));
+    tags.processTagInput(this.tagDeps, videoId, inputValue);
   }
 
   handleTagPaste(event: ClipboardEvent, videoId: string): void {
-    event.preventDefault();
-    const paste = event.clipboardData?.getData('text') || '';
-    const tags = paste.split(/[,\n\t]/).map(tag => tag.trim()).filter(tag => tag && tag.length > 0);
-
-    tags.forEach(tag => this.addTag(videoId, tag));
+    tags.handleTagPaste(this.tagDeps, event, videoId);
   }
 
   handleTagBlur(event: FocusEvent, videoId: string): void {
-    const input = event.target as HTMLInputElement;
-    if (input.value.trim()) {
-      this.processTagInput(videoId, input.value.trim());
-      input.value = '';
-    }
+    tags.handleTagBlur(this.tagDeps, event, videoId);
   }
 
   async copyTags(videoId: string): Promise<void> {
-    const tags = this.getCurrentTags(videoId);
-    if (tags.length === 0) {
-      showStatus(rendererI18n.t('status.noTagsToCopy'), 'info');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(tags.join(', '));
-      showStatus(rendererI18n.t('status.tagsCopied', { count: tags.length }), 'success');
-    } catch {
-      showStatus(rendererI18n.t('status.failedToCopyTags'), 'error');
-    }
+    await tags.copyTags(videoId);
   }
 
   addTag(videoId: string, tagText: string): void {
-    if (!tagText || tagText.length === 0) return;
-
-    const video = this.getVideo(videoId);
-    if (!video) return;
-
-    const cleanTag = tagText.trim();
-    if (!video.tags) {
-      video.tags = [];
-    }
-
-    const tagExists = video.tags.some(tag => tag.toLowerCase() === cleanTag.toLowerCase());
-    if (tagExists) return;
-
-    video.tags.push(cleanTag);
-
-    this.renderTagsContainer(videoId);
-    this.updateTagsCounter(videoId);
-    this.markChanged(videoId);
-    this.checkForChanges(videoId);
-
-    // rAF instead of a 10ms timer (A28): the rebuilt tag input exists
-    // synchronously after renderTagsContainer, so refocusing on the next
-    // frame keeps the caret in the tag input without an arbitrary delay.
-    requestAnimationFrame(() => {
-      const input = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
-      if (input) {
-        input.focus();
-      }
-    });
-  }
-
-  private renderTagsContainer(videoId: string): void {
-    const container = document.getElementById(`tags-container-${videoId}`);
-    const video = this.getVideo(videoId);
-
-    if (!container || !video) return;
-
-    const currentInput = container.querySelector('.tag-input') as HTMLInputElement;
-    const hadFocus = currentInput && document.activeElement === currentInput;
-
-    const tagsHtml = (video.tags || []).map(tag => `
-      <div class="tag-chip">
-        <span class="tag-text" title="${escapeHtmlAttribute(tag)}">${escapeHtml(tag)}</span>
-        <button type="button" class="tag-remove" data-video-id="${escapeHtmlAttribute(videoId)}" data-tag="${escapeHtmlAttribute(tag)}" aria-label="Remove tag">×</button>
-      </div>
-    `).join('');
-
-    const tagInput = container.querySelector('.tag-input') as HTMLInputElement;
-    const placeholder = tagInput?.placeholder || rendererI18n.t('form.tagsPlaceholder');
-
-    container.innerHTML = `
-      ${tagsHtml}
-      <input
-        type="text"
-        class="tag-input"
-        id="tag-input-${videoId}"
-        placeholder="${escapeHtmlAttribute(placeholder)}"
-        onkeydown="app.handleTagKeydown(event, '${videoId}')"
-        oninput="app.handleTagChange('${videoId}')"
-        onpaste="app.handleTagPaste(event, '${videoId}')"
-        onblur="app.handleTagBlur(event, '${videoId}')"
-      />
-    `;
-
-    if (hadFocus) {
-      const newInput = container.querySelector('.tag-input') as HTMLInputElement;
-      if (newInput) {
-        // rAF instead of setTimeout(0) (A28): restore focus on the next frame,
-        // after the innerHTML replacement above has been fully processed.
-        requestAnimationFrame(() => newInput.focus());
-      }
-    }
+    tags.addTag(this.tagDeps, videoId, tagText);
   }
 
   removeTag(videoId: string, tagText: string): void {
-    const video = this.getVideo(videoId);
-    if (!video || !video.tags) return;
-
-    video.tags = video.tags.filter(tag => tag !== tagText);
-
-    this.renderTagsContainer(videoId);
-    this.updateTagsCounter(videoId);
-    this.markChanged(videoId);
-    this.checkForChanges(videoId);
-
-    // rAF instead of a 10ms timer (A28): see addTag.
-    requestAnimationFrame(() => {
-      const input = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
-      if (input) {
-        input.focus();
-      }
-    });
+    tags.removeTag(this.tagDeps, videoId, tagText);
   }
 
   async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<void> {
@@ -1719,7 +1576,7 @@ class YouTubeBatchManager {
   // Thin wrappers over src/temp-changes.ts (A11): the module owns the
   // yt_temp_form_changes snapshot; the app supplies its state and reactions.
   private saveTemporaryChanges(): void {
-    tempChanges.saveTemporaryChanges(this.state.changedVideos, (videoId) => this.getCurrentTags(videoId));
+    tempChanges.saveTemporaryChanges(this.state.changedVideos, (videoId) => tags.getCurrentTags(videoId));
   }
 
   private restoreTemporaryChanges(): void {
@@ -1736,7 +1593,7 @@ class YouTubeBatchManager {
       handleDefaultLanguageChange: (videoId) => this.handleDefaultLanguageChange(videoId),
       handleSyntheticMediaChange: (videoId) => this.handleSyntheticMediaChange(videoId),
       autoResizeTextarea: (textarea) => this.autoResizeTextarea(textarea),
-      renderTagsContainer: (videoId) => this.renderTagsContainer(videoId),
+      renderTagsContainer: (videoId) => tags.renderTagsContainer(this.tagDeps, videoId),
       updateTagsCounter: (videoId) => this.updateTagsCounter(videoId),
       checkForChanges: (videoId) => this.checkForChanges(videoId)
     });
