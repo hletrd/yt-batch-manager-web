@@ -44,11 +44,17 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
   strict/lint/build green; verified in browser via stubbed-transport import → edit → save
   (PUT body JSON unchanged, including the status backfill round-trip).
 
-## A30 — Debounce textarea auto-resize
+## A30 — Debounce textarea auto-resize — RESOLVED
 - Severity/Confidence: LOW / Medium.
-- Citation: `src/app.ts:325-330,336,1634`.
-- Reason: per-keystroke reflow is minor; rAF-batching risks visible layout jitter and needs manual UX verification not feasible without a live login this cycle. Tracked in Plan 03 T6 as a candidate.
-- Exit criterion: a user-reported typing-lag report, or when the render path is refactored (A11).
+- Citation: `src/app.ts:325-330,336,1634` (now `autoResizeTextarea`/`resizeTextareaNow`).
+- Resolution: `autoResizeTextarea` is now a rAF throttle — a `WeakSet<HTMLTextAreaElement>`
+  tracks textareas with a pending resize so rapid keystrokes coalesce into at most one
+  reflow per textarea per frame; the synchronous logic lives in `resizeTextareaNow`, which
+  the already-frame-aligned post-insert batch in `renderVideos` calls directly (no extra
+  frame of unsized-textarea flash on first paint). Verified in browser: a 60-keystroke
+  burst in one tick leaves the height untouched until the next frame (single coalesced
+  resize), then settles at exactly `max(scrollHeight, 140)`; growth, shrink-to-min, and
+  the character counter all behave as before; zero console errors.
 
 ## A32 — `restoreTemporaryChanges` drops select value when option absent — RESOLVED
 - Severity/Confidence: LOW / Medium.

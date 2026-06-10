@@ -386,7 +386,29 @@ class YouTubeBatchManager {
     return Array.from(tagElements).map(el => el.textContent || '');
   }
 
+  // Textareas with a resize already scheduled for the next frame (A30). A
+  // WeakSet so entries are GC'd together with their (removed) textareas.
+  private pendingTextareaResizes = new WeakSet<HTMLTextAreaElement>();
+
+  // rAF-throttled auto-resize (A30): the resize forces a synchronous reflow
+  // (height write + scrollHeight read), so running it inline made every
+  // keystroke reflow the page. At most one resize per textarea per frame is
+  // scheduled; rapid input events coalesce into a single final resize.
   private autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+    if (this.pendingTextareaResizes.has(textarea)) {
+      return;
+    }
+    this.pendingTextareaResizes.add(textarea);
+    requestAnimationFrame(() => {
+      this.pendingTextareaResizes.delete(textarea);
+      this.resizeTextareaNow(textarea);
+    });
+  }
+
+  // Synchronous resize, used directly by callers that are already inside an
+  // animation frame (the post-insert batch in renderVideos), where deferring
+  // by another frame would flash the unsized textarea for one paint.
+  private resizeTextareaNow(textarea: HTMLTextAreaElement): void {
     textarea.style.height = 'auto';
     const minHeight = 140;
     const newHeight = Math.max(textarea.scrollHeight, minHeight);
@@ -638,8 +660,9 @@ class YouTubeBatchManager {
       for (const id of insertedIds) {
         const textarea = document.getElementById(`description-${id}`) as HTMLTextAreaElement;
         if (textarea) {
-          textarea.style.height = 'auto';
-          this.autoResizeTextarea(textarea);
+          // Already inside the batch rAF: size synchronously so the first
+          // paint of the inserted cards shows correctly-sized textareas.
+          this.resizeTextareaNow(textarea);
         }
         this.updateTitleCounter(id);
         this.updateDescriptionCounter(id);
