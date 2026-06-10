@@ -6,11 +6,34 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 
 ---
 
-## A11 (part) — Decompose the 2094-line `YouTubeBatchManager` god class
+## A11 (part) — Decompose the 2094-line `YouTubeBatchManager` god class — RESOLVED
 - Severity/Confidence: MEDIUM / High.
 - Citation: `src/app.ts` (whole file); ARCH-1.
-- Reason for deferral: large structural refactor with high regression risk and zero behavior change; out of scope for a single review-fix cycle. The data-correctness and dup-type parts of A11 ARE addressed now (Plan 04 T1–T3 shared types; Plan 01 fixes the XSS that motivates moving away from string HTML).
-- Exit criterion: re-open when the next feature touches rendering/state, or when a test harness is introduced (whichever first).
+- Resolution: `src/app.ts` (2,590 lines at pickup) was decomposed into 14 single-purpose
+  modules over 13 staged commits, one extraction per commit, with zero behavior change.
+  The class remains the orchestrator/facade and the public `app.*` method surface is
+  byte-for-byte identical (45 public methods before and after — required by the inline
+  onclick/onchange/oninput handlers in the rendered cards). Final layout:
+  `src/app.ts` (1,337 — orchestrator/state), `src/video-card.ts` (272 — card template,
+  option/image generators, DEFAULT_THUMBNAIL), `src/temp-changes.ts` (258 —
+  `yt_temp_form_changes` snapshot save/restore/clear), `src/tags.ts` (209 — tag editor),
+  `src/header-ui.ts` (111 — auth/save-all buttons, channel-header reset, menu/dropdown
+  togglers), `src/global-events.ts` (109 — window/document listener wiring),
+  `src/video-form.ts` (107 — form change detection + videos.update payload assembly),
+  `src/ui-feedback.ts` (105 — status toast, loading overlay, auth/no-credentials
+  notices), `src/utils/format.ts` (90 — ISO-duration/number/date parsing, Shorts
+  heuristic), `src/backup.ts` (83 — backup export filter + import sanitization),
+  `src/video-cache.ts` (77 — `yt_video_cache` persistence), `src/utils/html.ts` (56 —
+  escaping + URL/thumbnail sanitizers), `src/textarea-resize.ts` (43), `src/theme.ts`
+  (37), `src/fallback-data.ts` (35). No localStorage key, DOM id/class, i18n key, or
+  rendered markup changed. Verified per stage (tsc strict + eslint + build, then a
+  headless-browser smoke against the built dist): the rendered video card outerHTML for
+  a canonical imported record is byte-identical to the pre-refactor baseline; edit →
+  changed / revert → unchanged marking, tag add/remove/copy (including the delegated
+  `.tag-remove` click path), temp-changes OAuth round-trip restore, theme toggle, and
+  the intercepted `videos.update` payload (including `recording_details_changed` and
+  cleared-coordinate propagation) and `filterVideoDataForBackup` output are all
+  identical to the baseline; zero console/page errors.
 
 ## A2x parts of A28 — Replace remaining `setTimeout` timing hacks — RESOLVED
 - Severity/Confidence: LOW / Medium.
