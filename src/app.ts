@@ -207,6 +207,26 @@ class YouTubeBatchManager {
     rendererI18n.updatePageTexts();
   }
 
+  // Shared "no credentials" notice (A26): previously duplicated verbatim in
+  // renderVideos and initializeApp. The template's indentation deliberately
+  // matches the original initializeApp block so the rendered innerHTML stays
+  // byte-identical with the pre-refactor output.
+  private renderNoCredentials(container: HTMLElement): void {
+    container.innerHTML = `
+          <div class="no-credentials">
+            <div class="info-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <h3 data-i18n="credentials.notFound">No Credentials Found</h3>
+            <p data-i18n="credentials.notFoundDescription">Please ensure that credentials.json is available at the root of your web server.</p>
+          </div>
+        `;
+  }
+
   private showLoadingOverlay(mainText?: string, subText?: string): void {
     const overlay = document.getElementById('loading-overlay');
     const mainTextEl = document.getElementById('loading-text');
@@ -387,19 +407,7 @@ class YouTubeBatchManager {
           this.showAuthenticationPrompt();
           return;
         } else if (!this.youtubeAPI.hasCredentials()) {
-          videoList.innerHTML = `
-            <div class="no-credentials">
-              <div class="info-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-              </div>
-              <h3 data-i18n="credentials.notFound">No Credentials Found</h3>
-              <p data-i18n="credentials.notFoundDescription">Please ensure that credentials.json is available at the root of your web server.</p>
-            </div>
-          `;
+          this.renderNoCredentials(videoList);
           rendererI18n.updatePageTexts();
           return;
         } else {
@@ -1117,19 +1125,7 @@ class YouTubeBatchManager {
       this.updateAuthDependentButtons();
       const videoList = document.getElementById('video-list');
       if (videoList) {
-        videoList.innerHTML = `
-          <div class="no-credentials">
-            <div class="info-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <h3 data-i18n="credentials.notFound">No Credentials Found</h3>
-            <p data-i18n="credentials.notFoundDescription">Please ensure that credentials.json is available at the root of your web server.</p>
-          </div>
-        `;
+        this.renderNoCredentials(videoList);
       }
     }
 
@@ -1696,46 +1692,65 @@ class YouTubeBatchManager {
     this.showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
   }
 
-  async logout(): Promise<void> {
-    try {
-      this.youtubeAPI.logout();
-      this.state.allVideos = [];
-      this.rebuildVideoIndex();
-      this.state.displayedVideos = [];
-      this.state.changedVideos.clear();
-      this.originalVideosState.clear();
-      this.clearVideoCache();
-      this.clearTemporaryChanges();
-      this.updateAuthDependentButtons();
+  // Shared logout core (A26): drop the API session via youtubeAPI.logout()
+  // (clearStoredToken removes the full token/OAuth key set including
+  // oauth_code_verifier), then clear all in-memory video/edit state plus the
+  // persisted video cache and temporary changes.
+  private clearSessionAndVideoState(): void {
+    this.youtubeAPI.logout();
+    this.state.allVideos = [];
+    this.rebuildVideoIndex();
+    this.state.displayedVideos = [];
+    this.state.changedVideos.clear();
+    this.originalVideosState.clear();
+    this.clearVideoCache();
+    this.clearTemporaryChanges();
+  }
 
-      const channelName = document.getElementById('channel-name');
-      if (channelName) {
-        channelName.setAttribute('data-i18n', 'app.loading');
-        channelName.textContent = 'Loading...';
-      }
+  // Reset the channel header back to its pre-login placeholder (A26): shared
+  // by logout() and removeSavedCredentials().
+  private resetChannelHeader(): void {
+    const channelName = document.getElementById('channel-name');
+    if (channelName) {
+      channelName.setAttribute('data-i18n', 'app.loading');
+      channelName.textContent = 'Loading...';
+    }
 
-      const channelInfo = document.getElementById('channel-info');
-      const mainContent = document.getElementById('main-content');
-      if (channelInfo) {
-        channelInfo.classList.remove('show');
-      }
-      if (mainContent) {
-        mainContent.classList.remove('with-channel');
-      }
+    const channelInfo = document.getElementById('channel-info');
+    const mainContent = document.getElementById('main-content');
+    if (channelInfo) {
+      channelInfo.classList.remove('show');
+    }
+    if (mainContent) {
+      mainContent.classList.remove('with-channel');
+    }
+  }
 
-      if (this.youtubeAPI.hasCredentials()) {
-        this.showAuthenticationPrompt();
-      } else {
-        const container = document.getElementById('video-list');
-        if (container) {
-          container.innerHTML = `
+  // Shared signed-out video-list placeholder (A26): prompt for authentication
+  // when credentials exist, otherwise show the empty "no videos" notice. The
+  // template's indentation matches the original logout/removeSavedCredentials
+  // blocks so the rendered innerHTML stays byte-identical.
+  private showSignedOutVideoList(): void {
+    if (this.youtubeAPI.hasCredentials()) {
+      this.showAuthenticationPrompt();
+    } else {
+      const container = document.getElementById('video-list');
+      if (container) {
+        container.innerHTML = `
             <div class="no-videos">
               <h3 data-i18n="app.noVideosLoaded">No videos loaded</h3>
             </div>
           `;
-        }
       }
+    }
+  }
 
+  async logout(): Promise<void> {
+    try {
+      this.clearSessionAndVideoState();
+      this.updateAuthDependentButtons();
+      this.resetChannelHeader();
+      this.showSignedOutVideoList();
       this.showStatus(rendererI18n.t('status.loggedOut'), 'success');
     } catch {
       this.showStatus(rendererI18n.t('status.failedToLogout'), 'error');
@@ -1771,46 +1786,11 @@ class YouTubeBatchManager {
 
   async removeSavedCredentials(): Promise<void> {
     try {
-      // logout() -> clearStoredToken() already removes the full token/OAuth key
-      // set (including oauth_code_verifier), so no separate manual list is needed.
-      this.youtubeAPI.logout();
-
-      this.state.allVideos = [];
-      this.rebuildVideoIndex();
-      this.state.displayedVideos = [];
-      this.state.changedVideos.clear();
-      this.originalVideosState.clear();
-      this.clearVideoCache();
-      this.clearTemporaryChanges();
-
-      const channelName = document.getElementById('channel-name');
-      if (channelName) {
-        channelName.setAttribute('data-i18n', 'app.loading');
-        channelName.textContent = 'Loading...';
-      }
-
-      const channelInfo = document.getElementById('channel-info');
-      const mainContent = document.getElementById('main-content');
-      if (channelInfo) {
-        channelInfo.classList.remove('show');
-      }
-      if (mainContent) {
-        mainContent.classList.remove('with-channel');
-      }
-
-      if (this.youtubeAPI.hasCredentials()) {
-        this.showAuthenticationPrompt();
-      } else {
-        const container = document.getElementById('video-list');
-        if (container) {
-          container.innerHTML = `
-            <div class="no-videos">
-              <h3 data-i18n="app.noVideosLoaded">No videos loaded</h3>
-            </div>
-          `;
-        }
-      }
-
+      // Same core as logout(); only the status message differs (and, as before
+      // the A26 extraction, no auth-button refresh on this path).
+      this.clearSessionAndVideoState();
+      this.resetChannelHeader();
+      this.showSignedOutVideoList();
       this.showStatus(rendererI18n.t('status.credentialsRemoved'), 'success');
     } catch {
       this.showStatus(rendererI18n.t('status.failedToRemoveCredentials'), 'error');

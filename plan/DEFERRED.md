@@ -62,11 +62,18 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Reason: inherent to a backend-less static SPA; there is no safer client-only store for a refresh token that must survive reloads (the README advertises persistent login). The mitigations (eliminate XSS sink A1, add CSP A6) ARE implemented in Plan 01. Per repo intent (README explicitly advertises "stays signed in across reloads"), persisting the refresh token is a deliberate product decision. This is a documented residual risk, not a deferred fix.
 - Exit criterion: if a backend/token-broker is ever introduced, move token storage server-side.
 
-## A26 (dedup part only) — DRY helper extraction for no-credentials / channel-reset blocks
+## A26 (dedup part only) — DRY helper extraction for no-credentials / channel-reset blocks — RESOLVED
 - Severity/Confidence: LOW / High.
-- Citation: `src/app.ts` (no-credentials blocks at ~362, ~1020, ~1483; near-identical logout/removeSavedCredentials bodies).
-- Reason: the user-visible defect in A26 (a no-credentials copy missing `data-i18n`) was FIXED this cycle (Plan 02 T2). What remains is a pure non-behavioral DRY refactor (extract renderNoCredentials/resetChannelHeader). Deferred to keep the cycle diff focused; not a correctness/security issue.
-- Exit criterion: extract the helper the next time one of these blocks needs a content/markup change, or as part of the A11 decomposition.
+- Citation: `src/app.ts` (no-credentials blocks, previously duplicated in `renderVideos` and `initializeApp`; near-identical logout/removeSavedCredentials bodies).
+- Resolution: extracted `renderNoCredentials(container)` (single canonical no-credentials
+  markup, indentation kept byte-identical to the pre-refactor startup output) and split the
+  shared logout core into `clearSessionAndVideoState()`, `resetChannelHeader()`, and
+  `showSignedOutVideoList()`; `logout()`/`removeSavedCredentials()` now compose these in
+  their original order (logout keeps its extra `updateAuthDependentButtons()` call).
+  Verified in browser: startup no-credentials innerHTML byte-identical before/after
+  (cmp), logout + removeSavedCredentials DOM/state byte-identical including the
+  monkey-patched `hasCredentials() === true` branch with a `youtubeAPI.logout` spy. The
+  renderVideos-path markup differs only in leading whitespace (canonicalized).
 
 ## A20 (storage part) — `client_secret` shipped to browser
 - Severity/Confidence: LOW / Medium.
