@@ -871,19 +871,26 @@ export class YouTubeAPI {
       // self-declaration untouched.
 
       const parts = ['snippet', 'status'];
-      if (updates.recording_date !== undefined || updates.latitude !== undefined || updates.longitude !== undefined) {
-        // recordingDate is ISO 8601 (YouTube keeps only the date portion).
-        // recordingDetails.location is deprecated but still accepted. Round-trip
-        // BOTH so videos.update does not wipe the untouched one (it deletes any
-        // omitted property). recordingDetails is added to the part only when we
-        // manage it. An empty date / missing coordinates clears that field.
-        const recordingDetails: any = {};
-        if (updates.recording_date) {
-          recordingDetails.recordingDate = `${updates.recording_date}T00:00:00.000Z`;
-        }
-        if (typeof updates.latitude === 'number' && typeof updates.longitude === 'number') {
-          recordingDetails.location = { latitude: updates.latitude, longitude: updates.longitude };
-        }
+      // recordingDate is ISO 8601 (YouTube keeps only the date portion).
+      // recordingDetails.location is deprecated but still accepted.
+      //
+      // CRITICAL: videos.update REPLACES the whole `recordingDetails` part and
+      // deletes any property omitted from the request. Sending the part with an
+      // EMPTY body therefore wipes an existing recordingDate. The caller passes
+      // recording_date as '' for an empty date input (not undefined), so guarding
+      // on `!== undefined` previously attached the part on every save (e.g. a
+      // title-only edit) and silently deleted the date on YouTube. Build the body
+      // first and only include the part when it actually carries content, so an
+      // incidental save preserves the existing recordingDetails. A date/location
+      // the user did supply is still written.
+      const recordingDetails: any = {};
+      if (updates.recording_date) {
+        recordingDetails.recordingDate = `${updates.recording_date}T00:00:00.000Z`;
+      }
+      if (typeof updates.latitude === 'number' && typeof updates.longitude === 'number') {
+        recordingDetails.location = { latitude: updates.latitude, longitude: updates.longitude };
+      }
+      if (Object.keys(recordingDetails).length > 0) {
         (requestBody as any).recordingDetails = recordingDetails;
         parts.push('recordingDetails');
       }
