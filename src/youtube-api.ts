@@ -813,7 +813,7 @@ export class YouTubeAPI {
     }
   }
 
-  async updateVideo(videoId: string, updates: Partial<VideoData>): Promise<{ success: boolean; error?: string }> {
+  async updateVideo(videoId: string, updates: Partial<VideoData> & { recording_details_changed?: boolean }): Promise<{ success: boolean; error?: string }> {
     if (!this.isAuthenticated || !this.accessToken) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -875,14 +875,11 @@ export class YouTubeAPI {
       // recordingDetails.location is deprecated but still accepted.
       //
       // CRITICAL: videos.update REPLACES the whole `recordingDetails` part and
-      // deletes any property omitted from the request. Sending the part with an
-      // EMPTY body therefore wipes an existing recordingDate. The caller passes
-      // recording_date as '' for an empty date input (not undefined), so guarding
-      // on `!== undefined` previously attached the part on every save (e.g. a
-      // title-only edit) and silently deleted the date on YouTube. Build the body
-      // first and only include the part when it actually carries content, so an
-      // incidental save preserves the existing recordingDetails. A date/location
-      // the user did supply is still written.
+      // deletes any property omitted from the request, so attaching the part on
+      // every save (the caller passes recording_date as '' for an empty input)
+      // would wipe an existing date on a title-only edit. The caller therefore
+      // tells us via recording_details_changed whether the user actually edited
+      // date/location relative to the saved baseline; see the attach guard below.
       const recordingDetails: any = {};
       if (updates.recording_date) {
         recordingDetails.recordingDate = `${updates.recording_date}T00:00:00.000Z`;
@@ -890,7 +887,13 @@ export class YouTubeAPI {
       if (typeof updates.latitude === 'number' && typeof updates.longitude === 'number') {
         recordingDetails.location = { latitude: updates.latitude, longitude: updates.longitude };
       }
-      if (Object.keys(recordingDetails).length > 0) {
+      // Attach the part only when the caller says the user actually changed the
+      // date/location (vs. the saved baseline). That covers an intentional clear
+      // too: a changed-but-empty body is sent as {} and deletes the
+      // recordingDetails on YouTube, which is exactly what clearing means. When
+      // the flag is absent/false the part is never attached, so an incidental
+      // (e.g. title-only) save can never wipe an existing date.
+      if (updates.recording_details_changed === true) {
         (requestBody as any).recordingDetails = recordingDetails;
         parts.push('recordingDetails');
       }

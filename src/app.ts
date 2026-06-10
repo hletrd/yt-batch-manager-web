@@ -2219,6 +2219,22 @@ class YouTubeBatchManager {
       // stored value only when the element is missing. Using `el?.value || stored`
       // would treat an intentionally-cleared field (empty string) as "unchanged"
       // and silently revert it, so an emptied description was never saved.
+      const recordingDate = ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || '');
+      const latitude = this.parseCoordInput((document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value, video.latitude);
+      const longitude = this.parseCoordInput((document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value, video.longitude);
+
+      // Did the user actually change date/location vs. the saved baseline? The
+      // API layer attaches the recordingDetails part only when this is true:
+      // attaching it on every save would wipe an existing date on incidental
+      // (e.g. title-only) saves, while never attaching it would make clearing a
+      // date impossible to propagate. Comparing against the baseline gives both:
+      // untouched fields are preserved, an intentional clear is sent.
+      const recordingBaseline = this.originalVideosState.get(videoId) ?? video;
+      const recordingDetailsChanged =
+        recordingDate !== (recordingBaseline.recording_date || '') ||
+        (latitude ?? null) !== (recordingBaseline.latitude ?? null) ||
+        (longitude ?? null) !== (recordingBaseline.longitude ?? null);
+
       const updates = {
         title: titleEl ? titleEl.value : video.title,
         description: descriptionEl ? descriptionEl.value : video.description,
@@ -2234,12 +2250,12 @@ class YouTubeBatchManager {
         license: (document.getElementById(`license-${videoId}`) as HTMLSelectElement | null)?.value || video.license || 'youtube',
         embeddable: video.embeddable,
         public_stats_viewable: video.public_stats_viewable,
-        recording_date: ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || ''),
-        latitude: this.parseCoordInput((document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value, video.latitude),
-        longitude: this.parseCoordInput((document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value, video.longitude)
+        recording_date: recordingDate,
+        latitude,
+        longitude
       };
 
-      const result = await this.youtubeAPI.updateVideo(videoId, updates);
+      const result = await this.youtubeAPI.updateVideo(videoId, { ...updates, recording_details_changed: recordingDetailsChanged });
 
       if (result.success) {
         Object.assign(video, updates);
