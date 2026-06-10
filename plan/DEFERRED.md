@@ -145,3 +145,26 @@ latest toolchain).
 - Exit criterion: re-open if a user reports stale/incomplete videos after an import+save
   with no obvious refresh path, or when the cache/state model is next refactored
   (e.g. alongside the A11 decomposition).
+
+---
+
+# Cycle 5 deferred findings
+
+Only existing cycle-5 review findings (`.context/reviews/_aggregate-cycle5.md`) appear
+here. Severity/confidence preserved exactly. The deferred item is NOT a security,
+correctness, or data-loss finding (it is a documentation-completeness gap), so deferral
+is permitted by the deferred-fix rules. The cycle-5 data-loss finding (E1) and its coupled
+MEDIUM (E2) are NOT deferred — both are addressed in Plan 10. Repo policy still binds this
+work when picked up (GPG-signed commits, conventional + gitmoji, no `--no-verify`, no
+force-push, latest toolchain).
+
+## E3 — README feature list omits the newest editable fields
+- Severity/Confidence: LOW / INFO (Medium).
+- Citation: `README.md` Features section — no mention of recording date/location, license,
+  or title/description language editing.
+- Reason for deferral: documentation-completeness only; not security/correctness/data-loss.
+  Matches the B17 docs-pass deferral precedent (group docs updates into a single later
+  pass once the feature set settles). No repo rule forbids omitting in-progress features
+  from the README.
+- Exit criterion: the next docs pass adds the newest editable-field list to the README
+  feature section.

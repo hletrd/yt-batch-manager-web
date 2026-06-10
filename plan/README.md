@@ -21,7 +21,8 @@ Plans derived from `.context/reviews/_aggregate.md` (cycle 1). Each finding from
 - `07-cycle2-security-correctness-i18n.md` — Cycle 2: B1–B11, B13 (scheduled); B12/B14–B17 deferred.
 - `08-cycle3-option-escaping.md` — Cycle 3: C1 (scheduled, option-markup escaping); C2 deferred.
 - `09-cycle4-dead-state-and-placeholder.md` — Cycle 4: D1 (dead `saveInProgress` field removal) + D2 (tag-input placeholder escaping consistency); both scheduled, none deferred.
-- `DEFERRED.md` — findings intentionally not scheduled (with reasons + exit criteria); cycle-1 (A*), cycle-2 (B*), cycle-3 (C*).
+- `10-cycle5-recordingdetails-dataloss.md` — Cycle 5: E1 (HIGH data-loss: empty `recordingDetails` part deletes a video's recordingDate on incidental saves) + E2 (coupled, subsumed by the E1 fix); E3 docs gap deferred.
+- `DEFERRED.md` — findings intentionally not scheduled (with reasons + exit criteria); cycle-1 (A*), cycle-2 (B*), cycle-3 (C*), cycle-5 (E3).
 
 ## Cycle 2 note
 Cycle-1 plans 01–06 are fully implemented (T-items marked `[x]`/`[D]`); they remain for
@@ -39,6 +40,16 @@ Convergence continuing: all A*/B*/C* findings re-verified as fixed/deferred. Cyc
 found only one LOW (D1, dead `saveInProgress` field) and one INFO (D2, tag-input
 placeholder escaping consistency — not attacker-reachable). Both scheduled in Plan 09;
 nothing newly deferred. Derived from `.context/reviews/_aggregate-cycle4.md`.
+
+## Cycle 5 note
+Reviewed the features added since cycle 4. One genuinely NEW HIGH data-loss bug found
+in the recording-date feature: `youtube-api.ts` sent the `recordingDetails` part with an
+empty body on every save (because `app.ts` passes an empty date as `''`, not `undefined`),
+which — per the authoritative `videos.update` part-replace semantics — silently deletes a
+video's recordingDate when the user edits an unrelated field. Scheduled and fixed in
+Plan 10 (E1; E2 coupled and subsumed). E3 (README feature-list completeness) deferred.
+All prior A*/B*/C*/D* findings re-verified fixed/deferred. Derived from
+`.context/reviews/_aggregate-cycle5.md`.
 
 ## Status legend
 `[ ]` todo · `[~]` in progress · `[x]` done · `[D]` deferred (see DEFERRED.md)
