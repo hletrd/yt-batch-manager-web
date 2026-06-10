@@ -60,6 +60,10 @@ class YouTubeBatchManager {
   private youtubeAPI: YouTubeAPI;
   private batchSaveInProgress: boolean = false;
   private skipCacheUpdates: boolean = false;
+  // Provenance of state.allVideos. Backup imports are thin records (no
+  // statistics/thumbnails/duration/upload_status), so cache persistence is
+  // limited to YouTube-sourced sets (C2).
+  private videosSource: 'youtube' | 'import' = 'youtube';
   // 16:9 transparent placeholder (muted play glyph). Transparent so the themed
   // .video-thumbnail img background shows through in both light and dark mode,
   // and 16:9 so it isn't distorted to fill the 320x180 thumbnail slot.
@@ -779,6 +783,14 @@ class YouTubeBatchManager {
 
   private updateVideoCache(): void {
     try {
+      // An imported set must not be persisted: saving one imported video would
+      // overwrite yt_video_cache with thin backup records that lack YouTube-only
+      // fields, degrading the next non-forced load (C2). The thin-cache discard
+      // in loadVideosFromCache stays as defense-in-depth.
+      if (this.videosSource !== 'youtube') {
+        console.log('Skipping video cache update: current video set came from a file import');
+        return;
+      }
       if (this.state.allVideos.length > 0) {
         // Reuse the in-memory channelId instead of re-parsing the whole cache on
         // every save.
@@ -822,6 +834,7 @@ class YouTubeBatchManager {
       }
 
       this.state.allVideos = videos;
+      this.videosSource = 'youtube';
       this.rebuildVideoIndex();
       this.state.displayedVideos = [...videos];
       this.state.changedVideos.clear();
@@ -1657,6 +1670,7 @@ class YouTubeBatchManager {
     const baselineState = new Map(this.originalVideosState);
 
     this.state.allVideos = videoData;
+    this.videosSource = 'import';
     this.rebuildVideoIndex();
     this.state.displayedVideos = [...videoData];
     this.state.changedVideos.clear();

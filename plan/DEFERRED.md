@@ -128,24 +128,16 @@ so deferral is permitted by the deferred-fix rules. Repo policy still binds this
 picked up (GPG-signed commits, conventional + gitmoji, no `--no-verify`, no force-push,
 latest toolchain).
 
-## C2 — Saving an imported video persists thin backup records into the video cache
+## C2 — Saving an imported video persists thin backup records into the video cache — RESOLVED
 - Severity/Confidence: LOW / Medium.
 - Citation: `src/app.ts:2078` (`updateVideo` → `updateVideoCache` → `saveVideosToCache`);
   backup field stripping at `filterVideoDataForBackup` (`app.ts:1439-1453`).
-- Reason for deferral: after a file import, `state.allVideos` are backup records that lack
-  YouTube-only fields (statistics/thumbnails/duration/upload_status). Saving one imported
-  video overwrites `yt_video_cache` with those thin records, so a later non-forced
-  `loadVideos()` shows imported videos missing stats/thumbnails. This is LATENT and
-  SELF-HEALING: a "Load from YouTube" (forceRefresh) fully repopulates the cache, the
-  24h expiry eventually drops it, and the UI already degrades gracefully (default
-  thumbnail, 0 stats). No data is lost on YouTube; only the local display cache is thin.
-  Not a security/correctness/data-loss finding. A robust fix (tag the cache with a
-  `source` and only persist YouTube-sourced sets, or skip `updateVideoCache` for
-  imported sets) touches the cache/state model and risks churn in a freshly stabilized
-  cycle.
-- Exit criterion: re-open if a user reports stale/incomplete videos after an import+save
-  with no obvious refresh path, or when the cache/state model is next refactored
-  (e.g. alongside the A11 decomposition).
+- Resolution: `state.allVideos` provenance is now tracked in a private
+  `videosSource: 'youtube' | 'import'` field (set by `loadVideos` / `importVideoData`),
+  and `updateVideoCache` skips persistence for imported sets, so saving an imported
+  video no longer overwrites `yt_video_cache` with thin backup records. The thin-cache
+  discard in `loadVideosFromCache` stays as defense-in-depth. Verified in browser:
+  import → save (intercepted API) → cache untouched.
 
 ---
 
