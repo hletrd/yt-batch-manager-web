@@ -10,6 +10,7 @@ import * as backup from './backup.js';
 import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
 import * as tags from './tags.js';
+import { autoResizeTextarea, resizeTextareaNow } from './textarea-resize.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -190,45 +191,6 @@ class YouTubeBatchManager {
     );
   }
 
-  // Textareas with a resize already scheduled for the next frame (A30). A
-  // WeakSet so entries are GC'd together with their (removed) textareas.
-  private pendingTextareaResizes = new WeakSet<HTMLTextAreaElement>();
-
-  // rAF-throttled auto-resize (A30): the resize forces a synchronous reflow
-  // (height write + scrollHeight read), so running it inline made every
-  // keystroke reflow the page. At most one resize per textarea per frame is
-  // scheduled; rapid input events coalesce into a single final resize.
-  private autoResizeTextarea(textarea: HTMLTextAreaElement): void {
-    if (this.pendingTextareaResizes.has(textarea)) {
-      return;
-    }
-    this.pendingTextareaResizes.add(textarea);
-    requestAnimationFrame(() => {
-      this.pendingTextareaResizes.delete(textarea);
-      this.resizeTextareaNow(textarea);
-    });
-  }
-
-  // Synchronous resize, used directly by callers that are already inside an
-  // animation frame (the post-insert batch in renderVideos), where deferring
-  // by another frame would flash the unsized textarea for one paint.
-  private resizeTextareaNow(textarea: HTMLTextAreaElement): void {
-    textarea.style.height = 'auto';
-    const minHeight = 140;
-    const newHeight = Math.max(textarea.scrollHeight, minHeight);
-    textarea.style.height = newHeight + 'px';
-  }
-
-  private initializeTextarea(videoId: string): void {
-    const textarea = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
-    if (textarea) {
-      this.autoResizeTextarea(textarea);
-      textarea.addEventListener('input', () => {
-        this.autoResizeTextarea(textarea);
-      });
-    }
-  }
-
   private async renderVideos(clear: boolean = false): Promise<void> {
     const videoList = document.getElementById('video-list');
     if (!videoList) return;
@@ -293,7 +255,7 @@ class YouTubeBatchManager {
         if (textarea) {
           // Already inside the batch rAF: size synchronously so the first
           // paint of the inserted cards shows correctly-sized textareas.
-          this.resizeTextareaNow(textarea);
+          resizeTextareaNow(textarea);
         }
         this.updateTitleCounter(id);
         this.updateDescriptionCounter(id);
@@ -1255,7 +1217,7 @@ class YouTubeBatchManager {
   handleDescriptionChange(videoId: string): void {
     const textarea = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
     if (textarea) {
-      this.autoResizeTextarea(textarea);
+      autoResizeTextarea(textarea);
     }
     this.checkForChanges(videoId);
   }
@@ -1380,7 +1342,7 @@ class YouTubeBatchManager {
   }
 
   handleTextareaResize(textarea: HTMLTextAreaElement): void {
-    this.autoResizeTextarea(textarea);
+    autoResizeTextarea(textarea);
   }
 
   handleImageError(img: HTMLImageElement): void {
@@ -1592,7 +1554,7 @@ class YouTubeBatchManager {
       handleLicenseChange: (videoId) => this.handleLicenseChange(videoId),
       handleDefaultLanguageChange: (videoId) => this.handleDefaultLanguageChange(videoId),
       handleSyntheticMediaChange: (videoId) => this.handleSyntheticMediaChange(videoId),
-      autoResizeTextarea: (textarea) => this.autoResizeTextarea(textarea),
+      autoResizeTextarea: (textarea) => autoResizeTextarea(textarea),
       renderTagsContainer: (videoId) => tags.renderTagsContainer(this.tagDeps, videoId),
       updateTagsCounter: (videoId) => this.updateTagsCounter(videoId),
       checkForChanges: (videoId) => this.checkForChanges(videoId)
