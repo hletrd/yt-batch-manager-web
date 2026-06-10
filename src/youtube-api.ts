@@ -20,6 +20,147 @@ interface OAuthCredentials {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Consumed-field-only shapes of the YouTube Data API / OAuth responses (A27).
+// These deliberately model ONLY the fields this app reads — not the full API
+// surface — so they stay small and obviously correct. Fields the API always
+// returns for the requested `part` (e.g. snippet on part=snippet) are typed
+// required; everything conditional is optional.
+// ---------------------------------------------------------------------------
+
+interface YouTubeApiThumbnail {
+  url: string;
+  width?: number;
+  height?: number;
+}
+
+interface PlaylistItemsListResponse {
+  nextPageToken?: string;
+  items?: Array<{
+    contentDetails?: { videoId?: string };
+  }>;
+}
+
+interface VideoListItem {
+  id: string;
+  snippet: {
+    title?: string;
+    description?: string;
+    publishedAt?: string;
+    categoryId?: string;
+    tags?: string[];
+    defaultAudioLanguage?: string;
+    defaultLanguage?: string;
+    thumbnails?: Record<string, YouTubeApiThumbnail>;
+  };
+  status?: {
+    privacyStatus?: string;
+    containsSyntheticMedia?: boolean;
+    madeForKids?: boolean;
+    license?: string;
+    embeddable?: boolean;
+    publicStatsViewable?: boolean;
+    uploadStatus?: string;
+    processingStatus?: string;
+  };
+  contentDetails?: { duration?: string };
+  statistics?: {
+    viewCount?: string;
+    likeCount?: string;
+    dislikeCount?: string;
+    commentCount?: string;
+  };
+  recordingDetails?: {
+    recordingDate?: string;
+    location?: { latitude?: number; longitude?: number };
+  };
+  fileDetails?: {
+    videoStreams?: Array<{ widthPixels?: number; heightPixels?: number }>;
+  };
+}
+
+interface VideoListResponse {
+  items?: VideoListItem[];
+}
+
+// channels.list?part=snippet (getChannelInfo). Returned as-is to app.ts.
+export interface ChannelInfoResponse {
+  items?: Array<{
+    snippet: {
+      title: string;
+      thumbnails?: { default?: { url?: string } };
+    };
+  }>;
+}
+
+// channels.list?part=contentDetails (getUploadsPlaylistId).
+interface ChannelContentDetailsResponse {
+  items?: Array<{
+    contentDetails?: { relatedPlaylists?: { uploads?: string } };
+  }>;
+}
+
+// videoCategories.list?part=snippet. Returned as-is to app.ts.
+export interface VideoCategoryListResponse {
+  items?: Array<{
+    id: string;
+    snippet: { title: string };
+  }>;
+}
+
+// i18nLanguages.list?part=snippet. Returned as-is to app.ts.
+export interface I18nLanguageListResponse {
+  items?: Array<{
+    id: string;
+    snippet: { name: string };
+  }>;
+}
+
+// Error envelope on non-2xx Data API responses.
+interface YouTubeErrorResponse {
+  error?: {
+    errors?: Array<{ reason?: string }>;
+    status?: string;
+    message?: string;
+  };
+}
+
+// https://oauth2.googleapis.com/token success / error bodies.
+interface OAuthTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  refresh_token?: string;
+}
+
+interface OAuthErrorResponse {
+  error?: string;
+  error_description?: string;
+}
+
+// videos.update PUT request body (consumed fields only).
+interface VideoUpdateRequestBody {
+  id: string;
+  snippet: {
+    title?: string;
+    description?: string;
+    categoryId?: string;
+    tags?: string[];
+    defaultAudioLanguage?: string;
+    defaultLanguage?: string;
+  };
+  status: {
+    privacyStatus?: string;
+    containsSyntheticMedia?: boolean;
+    license?: string;
+    embeddable?: boolean;
+    publicStatsViewable?: boolean;
+  };
+  recordingDetails?: {
+    recordingDate?: string;
+    location?: { latitude: number; longitude: number };
+  };
+}
+
 
 export class YouTubeAPI {
   private config: YouTubeAPIConfig = {};
@@ -377,7 +518,7 @@ export class YouTubeAPI {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData: OAuthErrorResponse = await response.json().catch(() => ({}));
         console.warn('Token refresh failed:', errorData);
         // invalid_grant means the refresh token was revoked/expired; drop the
         // whole session so the app falls back to a full re-login.
@@ -387,7 +528,7 @@ export class YouTubeAPI {
         return false;
       }
 
-      const tokenData = await response.json();
+      const tokenData: OAuthTokenResponse = await response.json();
       if (tokenData.access_token) {
         this.storeToken(
           tokenData.access_token,
@@ -501,7 +642,7 @@ export class YouTubeAPI {
     return response;
   }
 
-  async getChannelInfo(): Promise<any> {
+  async getChannelInfo(): Promise<ChannelInfoResponse> {
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
@@ -519,7 +660,7 @@ export class YouTubeAPI {
     return response.json();
   }
 
-  async getVideoCategories(): Promise<any> {
+  async getVideoCategories(): Promise<VideoCategoryListResponse> {
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
@@ -537,7 +678,7 @@ export class YouTubeAPI {
     return response.json();
   }
 
-  async getI18nLanguages(): Promise<any> {
+  async getI18nLanguages(): Promise<I18nLanguageListResponse> {
     if (!this.isAuthenticated || !this.accessToken) {
       throw new Error('Not authenticated');
     }
@@ -592,12 +733,12 @@ export class YouTubeAPI {
         throw new Error(await this.describeError(playlistResponse, 'Failed to fetch videos'));
       }
 
-      const playlistData = await playlistResponse.json();
+      const playlistData: PlaylistItemsListResponse = await playlistResponse.json();
       nextPageToken = playlistData.nextPageToken;
 
       const videoIds: string[] = (playlistData.items || [])
-        .map((item: any) => item.contentDetails?.videoId)
-        .filter(Boolean);
+        .map(item => item.contentDetails?.videoId)
+        .filter((id): id is string => Boolean(id));
 
       if (videoIds.length === 0) {
         continue;
@@ -620,18 +761,17 @@ export class YouTubeAPI {
         throw new Error(await this.describeError(videosResponse, 'Failed to fetch video details'));
       }
 
-      const videosData = await videosResponse.json();
+      const videosData: VideoListResponse = await videosResponse.json();
 
       for (const item of videosData.items || []) {
         const thumbnails: Record<string, ThumbnailData> = {};
 
         if (item.snippet.thumbnails) {
           for (const [key, thumb] of Object.entries(item.snippet.thumbnails)) {
-            const thumbnail = thumb as any;
             thumbnails[key] = {
-              url: thumbnail.url,
-              width: thumbnail.width || 0,
-              height: thumbnail.height || 0
+              url: thumb.url,
+              width: thumb.width || 0,
+              height: thumb.height || 0
             };
           }
         }
@@ -693,7 +833,7 @@ export class YouTubeAPI {
       if (!response.ok) {
         return;
       }
-      const data = await response.json();
+      const data: VideoListResponse = await response.json();
       const dims = new Map<string, { w?: number; h?: number }>();
       for (const item of data.items || []) {
         const stream = item.fileDetails?.videoStreams?.[0];
@@ -722,7 +862,7 @@ export class YouTubeAPI {
       throw new Error(await this.describeError(response, 'Failed to fetch channel'));
     }
 
-    const data = await response.json();
+    const data: ChannelContentDetailsResponse = await response.json();
     const uploads = data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
 
     if (!uploads) {
@@ -737,7 +877,7 @@ export class YouTubeAPI {
   private async describeError(response: Response, prefix: string): Promise<string> {
     let detail = `${response.status}`;
     try {
-      const data = await response.json();
+      const data: YouTubeErrorResponse = await response.json();
       const reason = data?.error?.errors?.[0]?.reason || data?.error?.status;
       const message = data?.error?.message;
       if (reason) {
@@ -795,7 +935,7 @@ export class YouTubeAPI {
         return null;
       }
 
-      const data = await response.json();
+      const data: VideoListResponse = await response.json();
       const status = data.items?.[0]?.status;
       if (!status) {
         return null;
@@ -821,48 +961,48 @@ export class YouTubeAPI {
     try {
       await this.ensureValidToken();
 
-      const requestBody = {
+      const requestBody: VideoUpdateRequestBody = {
         id: videoId,
         snippet: {},
         status: {}
       };
 
       if (updates.title !== undefined) {
-        (requestBody.snippet as any).title = updates.title;
+        requestBody.snippet.title = updates.title;
       }
       if (updates.description !== undefined) {
-        (requestBody.snippet as any).description = updates.description;
+        requestBody.snippet.description = updates.description;
       }
       if (updates.category_id !== undefined) {
-        (requestBody.snippet as any).categoryId = updates.category_id;
+        requestBody.snippet.categoryId = updates.category_id;
       }
       if (updates.tags !== undefined) {
-        (requestBody.snippet as any).tags = updates.tags;
+        requestBody.snippet.tags = updates.tags;
       }
       if (updates.defaultAudioLanguage !== undefined) {
-        (requestBody.snippet as any).defaultAudioLanguage = updates.defaultAudioLanguage;
+        requestBody.snippet.defaultAudioLanguage = updates.defaultAudioLanguage;
       }
       if (updates.default_language !== undefined) {
-        (requestBody.snippet as any).defaultLanguage = updates.default_language;
+        requestBody.snippet.defaultLanguage = updates.default_language;
       }
       if (updates.privacy_status !== undefined) {
-        (requestBody.status as any).privacyStatus = updates.privacy_status;
+        requestBody.status.privacyStatus = updates.privacy_status;
       }
       // Always round-trip the remaining mutable status fields. videos.update
       // deletes any status property omitted from the request, so leaving these
       // out would silently wipe them (e.g. an existing AI-content disclosure,
       // the made-for-kids designation, license, or embeddable setting).
       if (updates.contains_synthetic_media !== undefined) {
-        (requestBody.status as any).containsSyntheticMedia = updates.contains_synthetic_media;
+        requestBody.status.containsSyntheticMedia = updates.contains_synthetic_media;
       }
       if (updates.license !== undefined) {
-        (requestBody.status as any).license = updates.license;
+        requestBody.status.license = updates.license;
       }
       if (updates.embeddable !== undefined) {
-        (requestBody.status as any).embeddable = updates.embeddable;
+        requestBody.status.embeddable = updates.embeddable;
       }
       if (updates.public_stats_viewable !== undefined) {
-        (requestBody.status as any).publicStatsViewable = updates.public_stats_viewable;
+        requestBody.status.publicStatsViewable = updates.public_stats_viewable;
       }
       // Intentionally NOT writing selfDeclaredMadeForKids: the read-back field is
       // the *effective* madeForKids value, not the creator's self-declaration, so
@@ -880,7 +1020,7 @@ export class YouTubeAPI {
       // would wipe an existing date on a title-only edit. The caller therefore
       // tells us via recording_details_changed whether the user actually edited
       // date/location relative to the saved baseline; see the attach guard below.
-      const recordingDetails: any = {};
+      const recordingDetails: NonNullable<VideoUpdateRequestBody['recordingDetails']> = {};
       if (updates.recording_date) {
         recordingDetails.recordingDate = `${updates.recording_date}T00:00:00.000Z`;
       }
@@ -894,7 +1034,7 @@ export class YouTubeAPI {
       // the flag is absent/false the part is never attached, so an incidental
       // (e.g. title-only) save can never wipe an existing date.
       if (updates.recording_details_changed === true) {
-        (requestBody as any).recordingDetails = recordingDetails;
+        requestBody.recordingDetails = recordingDetails;
         parts.push('recordingDetails');
       }
 
@@ -907,7 +1047,7 @@ export class YouTubeAPI {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData: YouTubeErrorResponse = await response.json().catch(() => ({}));
         throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -986,13 +1126,13 @@ export class YouTubeAPI {
       // is NOT routed through authedFetch/handleApiResponse; its errors (400 on
       // bad grant, etc.) are handled explicitly below.
       if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json().catch(() => ({}));
+        const errorData: OAuthErrorResponse = await tokenResponse.json().catch(() => ({}));
         const errorMessage = errorData.error_description || errorData.error || 'Token exchange failed';
         console.error('Token exchange error:', errorData);
         throw new Error(errorMessage);
       }
 
-      const tokenData = await tokenResponse.json();
+      const tokenData: OAuthTokenResponse = await tokenResponse.json();
 
       if (tokenData.access_token) {
         this.storeToken(

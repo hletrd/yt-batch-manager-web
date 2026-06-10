@@ -18,11 +18,19 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Reason: the post-insert sizing is intertwined with the string-HTML render path; safely fixing it depends on the A11 refactor. The cheap focus-after-tag-edit cases ARE improved in Plan 04 T6.
 - Exit criterion: addressed together with A11 decomposition, or if a concrete timing bug is reproduced.
 
-## A27 (part) — Fully type all YouTube API responses
+## A27 (part) — Fully type all YouTube API responses — RESOLVED
 - Severity/Confidence: LOW / High.
 - Citation: `src/youtube-api.ts` (`Promise<any>`, `item: any`).
-- Reason: Plan 04 T4 types the consumed shapes (`getVideos`, `getChannelInfo`); exhaustively typing every endpoint/field is large and low-value relative to risk.
-- Exit criterion: when adding a new endpoint or when a type-related runtime bug is found.
+- Resolution: all remaining `any` usages in `src/youtube-api.ts` are gone. Consumed-field-only
+  interfaces now cover playlistItems, videos.list items (snippet/status/contentDetails/
+  statistics/recordingDetails/fileDetails.videoStreams), channels.list (snippet and
+  contentDetails.relatedPlaylists as separate per-`part` shapes), videoCategories,
+  i18nLanguages, the Data API error envelope, OAuth token success/error bodies, and the
+  videos.update request body. `getChannelInfo`/`getVideoCategories`/`getI18nLanguages` return
+  the typed shapes (exported), and the `(category: any)`/`(language: any)` annotations in
+  app.ts now rely on inference. Deliberately NOT exhaustive per the original scoping. tsc
+  strict/lint/build green; verified in browser via stubbed-transport import → edit → save
+  (PUT body JSON unchanged, including the status backfill round-trip).
 
 ## A30 — Debounce textarea auto-resize
 - Severity/Confidence: LOW / Medium.

@@ -1188,7 +1188,7 @@ class YouTubeBatchManager {
     try {
       const data = await this.youtubeAPI.getVideoCategories();
       this.videoCategories = {};
-      data.items?.forEach((category: any) => {
+      data.items?.forEach(category => {
         this.videoCategories[category.id] = {
           id: category.id,
           title: category.snippet.title
@@ -1220,7 +1220,7 @@ class YouTubeBatchManager {
     try {
       const data = await this.youtubeAPI.getI18nLanguages();
       this.i18nLanguages = {};
-      data.items?.forEach((language: any) => {
+      data.items?.forEach(language => {
         this.i18nLanguages[language.id] = {
           id: language.id,
           name: language.snippet.name
