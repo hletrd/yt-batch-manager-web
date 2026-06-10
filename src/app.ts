@@ -90,6 +90,11 @@ class YouTubeBatchManager {
     this.setupBeforeUnloadHandler();
     this.initializeApp();
 
+    // Real timer (kept, A28): a short startup settle so the auth-dependent
+    // buttons reflect the synchronously-restored token state once i18n (which
+    // supplies the tooltip strings) has had a moment to initialize; a rAF
+    // would race that async init. initializeApp re-runs this authoritatively
+    // in every async init branch.
     setTimeout(() => {
       this.updateAuthDependentButtons();
     }, 100);
@@ -177,6 +182,7 @@ class YouTubeBatchManager {
       statusEl.textContent = message;
       statusEl.className = `status-message status-${type} show`;
 
+      // Real timer (kept, A28): the status toast auto-hides after 3s by design.
       setTimeout(() => {
         statusEl.classList.remove('show');
       }, 3000);
@@ -235,9 +241,15 @@ class YouTubeBatchManager {
     if (overlay) {
       overlay.style.display = 'flex';
       overlay.setAttribute('aria-busy', 'true');
-      setTimeout(() => {
-        overlay.classList.add('show');
-      }, 10);
+      // Double rAF (A28): the first frame commits display:flex with the
+      // overlay still transparent; adding .show on the next frame then
+      // reliably triggers the CSS opacity transition (a same-frame add would
+      // skip it). Replaces a 10ms setTimeout doing the same job by luck.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          overlay.classList.add('show');
+        });
+      });
     }
 
     if (mainTextEl && mainText) {
@@ -254,6 +266,10 @@ class YouTubeBatchManager {
     if (overlay) {
       overlay.classList.remove('show');
       overlay.setAttribute('aria-busy', 'false');
+      // Real timer (kept, A28): waits out the overlay's 0.3s CSS transition
+      // before removing it from layout; a transitionend listener can be
+      // skipped entirely (reduced-motion, interrupted transition) and would
+      // then leave the overlay blocking the page.
       setTimeout(() => {
         overlay.style.display = 'none';
       }, 300);
@@ -1012,6 +1028,10 @@ class YouTubeBatchManager {
     document.addEventListener('focusout', (event) => {
       const target = event.target as HTMLElement;
       if (target.classList.contains('dropdown-btn')) {
+        // Real timer (kept, A28): grace period so focus can land inside the
+        // same dropdown first — focusout fires before the next element gains
+        // focus, and a rAF can run between the two focus events and close the
+        // dropdown too early.
         setTimeout(() => {
           const dropdown = target.closest('.dropdown');
           if (dropdown && !dropdown.querySelector(':focus')) {
@@ -1129,9 +1149,13 @@ class YouTubeBatchManager {
       }
     }
 
-    setTimeout(() => {
+    // Final localization sweep on the next frame (A28): every init-path DOM
+    // insertion above (auth prompt / no-credentials notice) is synchronous by
+    // this point, so a frame boundary — not an arbitrary 100ms timer — is
+    // enough for it all to be queryable here.
+    requestAnimationFrame(() => {
       rendererI18n.updatePageTexts();
-    }, 100);
+    });
   }
 
   private initializeFallbackData(): void {
@@ -2109,12 +2133,15 @@ class YouTubeBatchManager {
     this.markChanged(videoId);
     this.checkForChanges(videoId);
 
-    setTimeout(() => {
+    // rAF instead of a 10ms timer (A28): the rebuilt tag input exists
+    // synchronously after renderTagsContainer, so refocusing on the next
+    // frame keeps the caret in the tag input without an arbitrary delay.
+    requestAnimationFrame(() => {
       const input = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
       if (input) {
         input.focus();
       }
-    }, 10);
+    });
   }
 
   private renderTagsContainer(videoId: string): void {
@@ -2153,7 +2180,9 @@ class YouTubeBatchManager {
     if (hadFocus) {
       const newInput = container.querySelector('.tag-input') as HTMLInputElement;
       if (newInput) {
-        setTimeout(() => newInput.focus(), 0);
+        // rAF instead of setTimeout(0) (A28): restore focus on the next frame,
+        // after the innerHTML replacement above has been fully processed.
+        requestAnimationFrame(() => newInput.focus());
       }
     }
   }
@@ -2169,12 +2198,13 @@ class YouTubeBatchManager {
     this.markChanged(videoId);
     this.checkForChanges(videoId);
 
-    setTimeout(() => {
+    // rAF instead of a 10ms timer (A28): see addTag.
+    requestAnimationFrame(() => {
       const input = document.getElementById(`tag-input-${videoId}`) as HTMLInputElement;
       if (input) {
         input.focus();
       }
-    }, 10);
+    });
   }
 
   async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<void> {

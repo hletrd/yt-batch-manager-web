@@ -12,11 +12,23 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Reason for deferral: large structural refactor with high regression risk and zero behavior change; out of scope for a single review-fix cycle. The data-correctness and dup-type parts of A11 ARE addressed now (Plan 04 T1–T3 shared types; Plan 01 fixes the XSS that motivates moving away from string HTML).
 - Exit criterion: re-open when the next feature touches rendering/state, or when a test harness is introduced (whichever first).
 
-## A2x parts of A28 — Replace remaining `setTimeout` timing hacks
+## A2x parts of A28 — Replace remaining `setTimeout` timing hacks — RESOLVED
 - Severity/Confidence: LOW / Medium.
 - Citation: `src/app.ts:548-558` (post-insert 10ms textarea sizing + i18n), `:1008`, `:106`.
-- Reason: the post-insert sizing is intertwined with the string-HTML render path; safely fixing it depends on the A11 refactor. The cheap focus-after-tag-edit cases ARE improved in Plan 04 T6.
-- Exit criterion: addressed together with A11 decomposition, or if a concrete timing bug is reproduced.
+- Resolution: full inventory of the 9 `setTimeout` sites in `src/app.ts`. Replaced with
+  rAF/direct sequencing (render-timing hacks): loading-overlay `.show` trigger (10ms →
+  double rAF so the opacity transition still fires), end-of-`initializeApp` i18n sweep
+  (100ms → rAF; all init-path DOM is inserted synchronously before it), and the three
+  focus-after-tag-edit cases in `addTag`/`removeTag`/`renderTagsContainer` (10ms/0ms → rAF).
+  The post-insert textarea sizing was already rAF-batched in an earlier cycle. KEPT as real
+  timers, each with an in-code justification comment: the 3s status-toast auto-hide (by
+  design), the 300ms overlay `display:none` (matches the 0.3s CSS transition; transitionend
+  can be skipped under reduced-motion), the 100ms dropdown focusout grace period (focusout
+  fires before the next element gains focus; rAF can run between the two and close the
+  dropdown too early), and the 100ms constructor auth-button settle (races async i18n init;
+  re-run authoritatively by `initializeApp`). Verified in browser: tag add/remove keeps
+  focus in the tag input, textareas size correctly, overlay fade-in/out still works,
+  zero console errors.
 
 ## A27 (part) — Fully type all YouTube API responses — RESOLVED
 - Severity/Confidence: LOW / High.
