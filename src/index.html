@@ -4,6 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com; form-action 'self' https://accounts.google.com">
+  <script>
+    // Set <html lang> before any app JS loads so assistive tech sees the right
+    // language from first paint (B14). Mirrors detectSystemLanguage() in
+    // src/i18n/renderer-i18n.ts: first browser locale whose primary subtag is a
+    // supported UI language ('en'/'ko') wins, falling back to the static "en".
+    // Placed after the CSP meta so it stays governed by the document policy
+    // ('unsafe-inline' scripts are already allowed). The runtime assignment in
+    // initializeApp remains authoritative once i18n init completes.
+    (function () {
+      try {
+        var supported = ['en', 'ko'];
+        var locales = navigator.languages || [navigator.language];
+        for (var i = 0; i < locales.length; i++) {
+          var code = String(locales[i] || '').split('-')[0].toLowerCase();
+          if (supported.indexOf(code) !== -1) {
+            document.documentElement.lang = code;
+            return;
+          }
+        }
+      } catch (e) { /* keep the static lang="en" */ }
+    })();
+  </script>
   <title data-i18n="app.title">YT Batch Manager</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <style>

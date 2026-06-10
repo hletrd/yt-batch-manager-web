@@ -89,13 +89,15 @@ toolchain).
   with the live record. Change-detection verified in browser (edit → marked changed,
   revert → unmarked).
 
-## B14 — `<html lang>` static `en`, updated only by JS post-init
+## B14 — `<html lang>` static `en`, updated only by JS post-init — RESOLVED
 - Severity/Confidence: LOW / Medium.
 - Citation: `src/index.html:2`, `src/app.ts:933`.
-- Reason: this is a static single-page app with no SSR; the runtime JS already sets the
-  correct lang after i18n init (cycle-1 A7). A correct static default would require build-
-  time language selection, which is out of scope and low value. Not security/correctness.
-- Exit criterion: if the app gains SSR/prerendering or a build-time locale split.
+- Resolution: a tiny inline script near the top of `<head>` (after the CSP meta so the
+  document policy still governs it; the page CSP already allows 'unsafe-inline') now sets
+  `document.documentElement.lang` from `navigator.languages` before any app JS loads,
+  mirroring the detection in `src/i18n/renderer-i18n.ts` (ko → ko, else en). The
+  post-i18n-init runtime assignment in `initializeApp` remains authoritative. Verified
+  in browser for both en and ko locales.
 
 ## B15 — `made_for_kids` modeled + read but never written/displayed
 - Severity/Confidence: LOW / Low.
