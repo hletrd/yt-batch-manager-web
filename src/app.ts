@@ -1,6 +1,7 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI } from './youtube-api.js';
 import type { VideoData, ThumbnailData } from './types.js';
+import { arraysEqual, formatDuration, formatNumber, isLikelyShort, parseCoordInput, publishedTime } from './utils/format.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -108,72 +109,6 @@ class YouTubeBatchManager {
 
   private getVideo(videoId: string): VideoData | undefined {
     return this.videoIndex.get(videoId);
-  }
-
-  // Parse an ISO-8601 duration (e.g. P1DT2H3M4S) into days/hours/minutes/seconds.
-  // Long uploads/archives can exceed 24h and carry a days (D) component, which
-  // the previous PT-only regex silently dropped.
-  private parseIsoDuration(isoDuration?: string): { days: number; hours: number; minutes: number; seconds: number } | null {
-    if (!isoDuration) return null;
-    const match = isoDuration.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/);
-    if (!match) return null;
-    return {
-      days: parseInt(match[1] || '0', 10),
-      hours: parseInt(match[2] || '0', 10),
-      minutes: parseInt(match[3] || '0', 10),
-      seconds: parseInt(match[4] || '0', 10)
-    };
-  }
-
-  private formatDuration(isoDuration?: string): string {
-    const parsed = this.parseIsoDuration(isoDuration);
-    if (!parsed) return '';
-
-    // Roll any days into the hours component for a compact H:MM:SS display.
-    const hours = parsed.days * 24 + parsed.hours;
-    const { minutes, seconds } = parsed;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    } else {
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }
-  }
-
-  private parseDurationToSeconds(isoDuration?: string): number {
-    const parsed = this.parseIsoDuration(isoDuration);
-    if (!parsed) return 0;
-    return parsed.days * 86400 + parsed.hours * 3600 + parsed.minutes * 60 + parsed.seconds;
-  }
-
-  // The Data API has no official "is this a Short" flag, so this is a heuristic:
-  // a Short is vertical/square AND 3 minutes or shorter (the current Shorts
-  // length limit). Orientation comes from fileDetails (owner-only); a landscape
-  // video is never flagged. When the dimensions are unknown (fileDetails absent,
-  // e.g. a file import) we fall back to the duration test alone.
-  private isLikelyShort(video: VideoData): boolean {
-    const seconds = this.parseDurationToSeconds(video.duration);
-    if (seconds <= 0 || seconds > 180) {
-      return false;
-    }
-    const w = video.width_pixels;
-    const h = video.height_pixels;
-    if (w && h) {
-      return h >= w;
-    }
-    return true;
-  }
-
-  private formatNumber(num?: string): string {
-    if (!num) return '0';
-    const number = parseInt(num);
-    if (number >= 1000000) {
-      return (number / 1000000).toFixed(1) + 'M';
-    } else if (number >= 1000) {
-      return (number / 1000).toFixed(1) + 'K';
-    } else {
-      return number.toString();
-    }
   }
 
   private showStatus(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
@@ -374,7 +309,7 @@ class YouTubeBatchManager {
       (lngEl ? lngEl.value.trim() : '') !== (savedLongitude != null ? String(savedLongitude) : '') ||
       (licenseEl ? licenseEl.value : (savedLicense || 'youtube')) !== (savedLicense || 'youtube') ||
       (defaultLangEl ? defaultLangEl.value : '') !== (savedDefaultLanguage || '') ||
-      !this.arraysEqual(currentTags, originalTags)
+      !arraysEqual(currentTags, originalTags)
     );
   }
 
@@ -482,8 +417,8 @@ class YouTubeBatchManager {
               <div class="video-title">${this.escapeHtml(video.title)}</div>
               <div class="video-published">
                 <span class="video-published-text" data-i18n="app.published">Published</span> ${video.published_at.substring(0, 10)}
-                ${video.duration ? `<span class="video-duration">${this.formatDuration(video.duration)}</span>` : ''}
-                ${this.isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge">Short</span>` : ''}
+                ${video.duration ? `<span class="video-duration">${formatDuration(video.duration)}</span>` : ''}
+                ${isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge">Short</span>` : ''}
                 ${video.made_for_kids === true ? `<span class="made-for-kids-badge" data-i18n="video.madeForKids">Made for kids</span>` : ''}
               </div>
               <div class="video-metadata">
@@ -545,25 +480,25 @@ class YouTubeBatchManager {
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                         <circle cx="12" cy="12" r="3"/>
                       </svg>
-                      ${this.formatNumber(video.statistics.view_count)}
+                      ${formatNumber(video.statistics.view_count)}
                     </div>
                     <div class="stat-item">
                       <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                       </svg>
-                      ${this.formatNumber(video.statistics.like_count)}
+                      ${formatNumber(video.statistics.like_count)}
                     </div>
                     <div class="stat-item">
                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/>
                        </svg>
-                       ${this.formatNumber(video.statistics.dislike_count)}
+                       ${formatNumber(video.statistics.dislike_count)}
                      </div>
                     <div class="stat-item">
                       <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                       </svg>
-                      ${this.formatNumber(video.statistics.comment_count)}
+                      ${formatNumber(video.statistics.comment_count)}
                     </div>
                   </div>
                 ` : ''}
@@ -1353,21 +1288,13 @@ class YouTubeBatchManager {
     }
   }
 
-  // Parse a published_at date to epoch ms, treating missing/invalid dates as 0
-  // (oldest). Without this an empty published_at (e.g. from an imported backup)
-  // yields NaN, and NaN comparisons make the sort order non-deterministic.
-  private publishedTime(value: string): number {
-    const t = new Date(value).getTime();
-    return Number.isNaN(t) ? 0 : t;
-  }
-
   private sortAllVideos(): void {
     this.state.allVideos.sort((a, b) => {
       switch (this.state.currentSort) {
         case 'date-desc':
-          return this.publishedTime(b.published_at) - this.publishedTime(a.published_at);
+          return publishedTime(b.published_at) - publishedTime(a.published_at);
         case 'date-asc':
-          return this.publishedTime(a.published_at) - this.publishedTime(b.published_at);
+          return publishedTime(a.published_at) - publishedTime(b.published_at);
         case 'title-asc':
           return a.title.localeCompare(b.title);
         case 'title-desc':
@@ -1987,14 +1914,6 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
-  private parseCoordInput(raw: string | undefined, fallback: number | undefined): number | undefined {
-    if (raw === undefined) return fallback;
-    const trimmed = raw.trim();
-    if (trimmed === '') return undefined;
-    const n = parseFloat(trimmed);
-    return Number.isFinite(n) ? n : undefined;
-  }
-
   private checkForChanges(videoId: string): void {
     const video = this.getVideo(videoId);
     const original = this.originalVideosState.get(videoId);
@@ -2036,10 +1955,6 @@ class YouTubeBatchManager {
     return original?.tags || [];
   }
 
-  private arraysEqual(a: string[], b: string[]): boolean {
-    return a.length === b.length && a.every((val, index) => val === b[index]);
-  }
-
   private videoDiffersFromBaseline(video: VideoData, baseline: VideoData): boolean {
     return (
       (video.title || '') !== (baseline.title || '') ||
@@ -2053,7 +1968,7 @@ class YouTubeBatchManager {
       (video.longitude ?? null) !== (baseline.longitude ?? null) ||
       (video.license || 'youtube') !== (baseline.license || 'youtube') ||
       (video.default_language || '') !== (baseline.default_language || '') ||
-      !this.arraysEqual(video.tags || [], baseline.tags || [])
+      !arraysEqual(video.tags || [], baseline.tags || [])
     );
   }
 
@@ -2273,8 +2188,8 @@ class YouTubeBatchManager {
       // would treat an intentionally-cleared field (empty string) as "unchanged"
       // and silently revert it, so an emptied description was never saved.
       const recordingDate = ((document.getElementById(`recording-date-${videoId}`) as HTMLInputElement | null)?.value) ?? (video.recording_date || '');
-      const latitude = this.parseCoordInput((document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value, video.latitude);
-      const longitude = this.parseCoordInput((document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value, video.longitude);
+      const latitude = parseCoordInput((document.getElementById(`latitude-${videoId}`) as HTMLInputElement | null)?.value, video.latitude);
+      const longitude = parseCoordInput((document.getElementById(`longitude-${videoId}`) as HTMLInputElement | null)?.value, video.longitude);
 
       // Did the user actually change date/location vs. the saved baseline? The
       // API layer attaches the recordingDetails part only when this is true:
