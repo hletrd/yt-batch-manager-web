@@ -3,6 +3,7 @@ import { YouTubeAPI } from './youtube-api.js';
 import type { VideoData } from './types.js';
 import { arraysEqual, formatDuration, formatNumber, isLikelyShort, parseCoordInput, publishedTime } from './utils/format.js';
 import { escapeHtml, escapeHtmlAttribute, sanitizeImageUrl, sanitizeThumbnailMap } from './utils/html.js';
+import * as videoCache from './video-cache.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -12,12 +13,6 @@ interface AppState {
   videosPerPage: number;
   currentPage: number;
   isLoading: boolean;
-}
-
-interface VideoCacheData {
-  videos: VideoData[];
-  timestamp: number;
-  channelId?: string;
 }
 
 interface TemporaryFormData {
@@ -72,8 +67,6 @@ class YouTubeBatchManager {
   private defaultThumbnail: string = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTYwIiBjeT0iOTAiIHI9IjI4IiBzdHJva2U9IiM5Y2EzYWYiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0xNTIgNzggTDE3NiA5MCBMMTUyIDEwMiBaIiBmaWxsPSIjOWNhM2FmIi8+PC9zdmc+';
   private videoCategories: Record<string, { id: string; title: string }> = {};
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
-  private readonly CACHE_EXPIRY_HOURS = 24;
-  private readonly VIDEO_CACHE_KEY = 'yt_video_cache';
   private readonly TEMP_CHANGES_KEY = 'yt_temp_form_changes';
   private isOAuthRedirecting = false;
   // In-memory copy of the cached channelId so updateVideoCache does not have to
@@ -704,65 +697,24 @@ class YouTubeBatchManager {
     }
   }
 
+  // Thin wrappers over src/video-cache.ts (A11): the module owns persistence;
+  // the app keeps its in-memory channelId mirror in sync here.
   private saveVideosToCache(videos: VideoData[], channelId?: string): void {
-    try {
-      const cacheData: VideoCacheData = {
-        videos,
-        timestamp: Date.now(),
-        channelId
-      };
-      localStorage.setItem(this.VIDEO_CACHE_KEY, JSON.stringify(cacheData));
+    if (videoCache.saveVideosToCache(videos, channelId)) {
       this.cachedChannelId = channelId;
-      console.log('Videos cached to localStorage:', videos.length);
-    } catch (error) {
-      console.warn('Failed to cache videos:', error);
     }
   }
 
   private loadVideosFromCache(): VideoData[] | null {
-    try {
-      const cached = localStorage.getItem(this.VIDEO_CACHE_KEY);
-      if (!cached) return null;
-
-      const cacheData: VideoCacheData = JSON.parse(cached);
-      const now = Date.now();
-      const cacheAge = now - cacheData.timestamp;
-      const maxAge = this.CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-
-      if (cacheAge > maxAge) {
-        console.log('Cache expired, will load fresh data');
-        localStorage.removeItem(this.VIDEO_CACHE_KEY);
-        return null;
-      }
-
-      // Discard a cache that looks thin/broken (e.g. backup records, or a cache
-      // written during a failed load): videos fetched from YouTube always carry
-      // thumbnail data, so if none do, drop the cache and load fresh instead of
-      // showing empty cards forever — a browser refresh does not clear localStorage.
-      const cachedVideos = cacheData.videos || [];
-      const hasThumbnails = cachedVideos.some(v =>
-        !!v.thumbnail_url || (!!v.thumbnails && Object.keys(v.thumbnails).length > 0)
-      );
-      if (cachedVideos.length > 0 && !hasThumbnails) {
-        console.log('Cached videos look thin (no thumbnails); discarding cache and loading fresh');
-        localStorage.removeItem(this.VIDEO_CACHE_KEY);
-        return null;
-      }
-
-      this.cachedChannelId = cacheData.channelId;
-      console.log('Loading videos from cache:', cacheData.videos.length);
-      return cacheData.videos;
-    } catch (error) {
-      console.warn('Failed to load cached videos:', error);
-      localStorage.removeItem(this.VIDEO_CACHE_KEY);
-      return null;
-    }
+    const cached = videoCache.loadVideosFromCache();
+    if (!cached) return null;
+    this.cachedChannelId = cached.channelId;
+    return cached.videos;
   }
 
   private clearVideoCache(): void {
-    localStorage.removeItem(this.VIDEO_CACHE_KEY);
+    videoCache.clearVideoCache();
     this.cachedChannelId = undefined;
-    console.log('Video cache cleared');
   }
 
   private updateVideoCache(): void {
