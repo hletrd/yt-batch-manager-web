@@ -9,6 +9,7 @@ import { DEFAULT_THUMBNAIL, renderVideoCardHtml } from './video-card.js';
 import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showStatus } from './ui-feedback.js';
 import * as backup from './backup.js';
 import * as theme from './theme.js';
+import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -698,37 +699,10 @@ class YouTubeBatchManager {
   }
 
   private initializeFallbackData(): void {
-    this.videoCategories = {
-      '1': { id: '1', title: 'Film & Animation' },
-      '2': { id: '2', title: 'Autos & Vehicles' },
-      '10': { id: '10', title: 'Music' },
-      '15': { id: '15', title: 'Pets & Animals' },
-      '17': { id: '17', title: 'Sports' },
-      '19': { id: '19', title: 'Travel & Events' },
-      '20': { id: '20', title: 'Gaming' },
-      '22': { id: '22', title: 'People & Blogs' },
-      '23': { id: '23', title: 'Comedy' },
-      '24': { id: '24', title: 'Entertainment' },
-      '25': { id: '25', title: 'News & Politics' },
-      '26': { id: '26', title: 'Howto & Style' },
-      '27': { id: '27', title: 'Education' },
-      '28': { id: '28', title: 'Science & Technology' }
-    };
-
-    this.i18nLanguages = {
-      'en': { id: 'en', name: 'English' },
-      'es': { id: 'es', name: 'Spanish' },
-      'fr': { id: 'fr', name: 'French' },
-      'de': { id: 'de', name: 'German' },
-      'it': { id: 'it', name: 'Italian' },
-      'pt': { id: 'pt', name: 'Portuguese' },
-      'ru': { id: 'ru', name: 'Russian' },
-      'ja': { id: 'ja', name: 'Japanese' },
-      'ko': { id: 'ko', name: 'Korean' },
-      'zh': { id: 'zh', name: 'Chinese' },
-      'ar': { id: 'ar', name: 'Arabic' },
-      'hi': { id: 'hi', name: 'Hindi' }
-    };
+    // Fresh copies so later API loads can reassign/refill without ever
+    // touching the shared catalogs in src/fallback-data.ts.
+    this.videoCategories = { ...FALLBACK_VIDEO_CATEGORIES };
+    this.i18nLanguages = { ...FALLBACK_I18N_LANGUAGES };
   }
 
   private async loadVideoMetadata(): Promise<void> {
