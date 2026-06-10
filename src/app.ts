@@ -2382,6 +2382,24 @@ class YouTubeBatchManager {
     }
   }
 
+  // Restore a value into a <select>, preserving it even when its <option> is
+  // absent (e.g. category/language metadata failed to load and the restored
+  // value is outside the fallback set). Assigning a value with no matching
+  // option leaves the select empty and silently drops the user's unsaved
+  // choice (A32), so the missing option is appended (value doubling as its
+  // label) and selected. DOM assignment (value/textContent) is used instead of
+  // HTML interpolation, so the value needs no manual attribute escaping.
+  private setSelectValuePreservingChoice(select: HTMLSelectElement, value: string): void {
+    select.value = value;
+    if (value !== '' && select.value !== value) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+      select.value = value;
+    }
+  }
+
   private restoreTemporaryChanges(): void {
     try {
       const tempDataStr = localStorage.getItem(this.TEMP_CHANGES_KEY);
@@ -2416,12 +2434,12 @@ class YouTubeBatchManager {
         }
 
         if (categoryEl && formData.category_id !== categoryEl.value) {
-          categoryEl.value = formData.category_id;
+          this.setSelectValuePreservingChoice(categoryEl, formData.category_id);
           this.handleCategoryChange(videoId);
         }
 
         if (languageEl && formData.defaultAudioLanguage !== languageEl.value) {
-          languageEl.value = formData.defaultAudioLanguage || '';
+          this.setSelectValuePreservingChoice(languageEl, formData.defaultAudioLanguage || '');
           this.handleLanguageChange(videoId);
         }
 
@@ -2467,7 +2485,7 @@ class YouTubeBatchManager {
           const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
           const restored = formData.default_language || '';
           if (defaultLangEl && defaultLangEl.value !== restored) {
-            defaultLangEl.value = restored;
+            this.setSelectValuePreservingChoice(defaultLangEl, restored);
             this.handleDefaultLanguageChange(videoId);
           }
         }

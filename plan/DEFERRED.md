@@ -30,11 +30,14 @@ Repo policy still binds deferred work when picked up: GPG-signed commits, conven
 - Reason: per-keystroke reflow is minor; rAF-batching risks visible layout jitter and needs manual UX verification not feasible without a live login this cycle. Tracked in Plan 03 T6 as a candidate.
 - Exit criterion: a user-reported typing-lag report, or when the render path is refactored (A11).
 
-## A32 — `restoreTemporaryChanges` drops select value when option absent
+## A32 — `restoreTemporaryChanges` drops select value when option absent — RESOLVED
 - Severity/Confidence: LOW / Medium.
-- Citation: `src/app.ts:2014-2079`.
-- Reason: only triggers when API metadata failed to load AND a restored category/language is outside the fallback set — rare. Listed in Plan 05 T4. Deferring the fix, not the awareness.
-- Exit criterion: a reproduction where a restored value is silently lost, or when metadata-load-failure handling is revisited.
+- Citation: `src/app.ts:2014-2079` (now `restoreTemporaryChanges` / `setSelectValuePreservingChoice`).
+- Resolution: restoring into the category/audio-language/default-language selects now goes
+  through `setSelectValuePreservingChoice`, which appends a missing `<option>` (value as
+  its label, created via DOM APIs so no escaping is needed) and selects it instead of
+  silently leaving the select empty. Verified in browser by restoring a snapshot with a
+  category id outside the fallback list.
 
 ## A34 / Plan 02 T6 — Generated docs `lang="en"`
 - Severity/Confidence: LOW / Medium.
