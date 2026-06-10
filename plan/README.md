@@ -22,6 +22,7 @@ Plans derived from `.context/reviews/_aggregate.md` (cycle 1). Each finding from
 - `08-cycle3-option-escaping.md` — Cycle 3: C1 (scheduled, option-markup escaping); C2 deferred.
 - `09-cycle4-dead-state-and-placeholder.md` — Cycle 4: D1 (dead `saveInProgress` field removal) + D2 (tag-input placeholder escaping consistency); both scheduled, none deferred.
 - `10-cycle5-recordingdetails-dataloss.md` — Cycle 5: E1 (HIGH data-loss: empty `recordingDetails` part deletes a video's recordingDate on incidental saves) + E2 (coupled, subsumed by the E1 fix); E3 docs gap deferred.
+- `11-cycle6-temp-changes-fields.md` — Cycle 6: F1 (LOW/MEDIUM: temporary-changes snapshot omits the cycle-4/5 editable fields, so unsaved recording-date/location/license/language/synthetic edits are silently lost across the OAuth redirect). Scheduled; nothing newly deferred.
 - `DEFERRED.md` — findings intentionally not scheduled (with reasons + exit criteria); cycle-1 (A*), cycle-2 (B*), cycle-3 (C*), cycle-5 (E3).
 
 ## Cycle 2 note
@@ -50,6 +51,18 @@ video's recordingDate when the user edits an unrelated field. Scheduled and fixe
 Plan 10 (E1; E2 coupled and subsumed). E3 (README feature-list completeness) deferred.
 All prior A*/B*/C*/D* findings re-verified fixed/deferred. Derived from
 `.context/reviews/_aggregate-cycle5.md`.
+
+## Cycle 6 note
+Reviewed how the cycle-4/5 editable fields interact with the cross-cutting persistence
+paths (cache, JSON backup, temporary-changes save/restore). The cycle-5 E1 data-loss fix
+re-verified present/correct. One genuinely NEW finding: F1 — the temporary-changes snapshot
+(`TemporaryFormData` / `saveTemporaryChanges` / `restoreTemporaryChanges`) was never
+extended to cover the newer editable fields (recording date/location, license,
+default_language, and the pre-existing synthetic checkbox), so an unsaved edit to any of
+them is silently lost across the OAuth login redirect. LOCAL unsaved-input loss (not
+YouTube-side), but a correctness regression → scheduled in Plan 11; nothing newly deferred.
+All prior A*/B*/C*/D*/E* findings re-verified fixed/deferred. Derived from
+`.context/reviews/_aggregate-cycle6.md`.
 
 ## Status legend
 `[ ]` todo · `[~]` in progress · `[x]` done · `[D]` deferred (see DEFERRED.md)
