@@ -99,14 +99,15 @@ toolchain).
   post-i18n-init runtime assignment in `initializeApp` remains authoritative. Verified
   in browser for both en and ko locales.
 
-## B15 — `made_for_kids` modeled + read but never written/displayed
+## B15 — `made_for_kids` modeled + read but never written/displayed — RESOLVED
 - Severity/Confidence: LOW / Low.
 - Citation: `src/types.ts:23`, `src/youtube-api.ts:644`.
-- Reason: intentional after cycle-1 A5 — the field is retained so backups can round-trip
-  the value; removing it would lose that data on export. Read-but-unused in the UI is by
-  design, not a defect.
-- Exit criterion: if backup export stops needing the field, or the UI adds a made-for-kids
-  control.
+- Resolution: the field is now displayed as a read-only "Made for kids" badge
+  (`.made-for-kids-badge`, theme-aware, i18n `video.madeForKids` en/ko) in the video
+  card metadata row when `made_for_kids === true`. Deliberately NOT editable and
+  `selfDeclaredMadeForKids` is still never written — the COPPA designation must not be
+  toggled from this app (rationale documented in `src/youtube-api.ts`). Badge show/hide
+  verified in browser.
 
 ## B16 — Unused `batchUpdateVideos` public method — RESOLVED
 - Severity/Confidence: LOW / Low.

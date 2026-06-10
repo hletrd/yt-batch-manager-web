@@ -438,6 +438,7 @@ class YouTubeBatchManager {
                 <span class="video-published-text" data-i18n="app.published">Published</span> ${video.published_at.substring(0, 10)}
                 ${video.duration ? `<span class="video-duration">${this.formatDuration(video.duration)}</span>` : ''}
                 ${this.isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge">Short</span>` : ''}
+                ${video.made_for_kids === true ? `<span class="made-for-kids-badge" data-i18n="video.madeForKids">Made for kids</span>` : ''}
               </div>
               <div class="video-metadata">
                 <div class="privacy-control">
