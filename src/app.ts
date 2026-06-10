@@ -11,6 +11,7 @@ import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
 import * as tags from './tags.js';
 import { autoResizeTextarea, resizeTextareaNow } from './textarea-resize.js';
+import * as headerUi from './header-ui.js';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -107,56 +108,14 @@ class YouTubeBatchManager {
     this.updateSaveAllButton();
   }
 
+  // Thin wrappers over src/header-ui.ts (A11): the module owns the DOM; the
+  // app supplies its auth/changed-count state.
   private updateAuthDependentButtons(): void {
-    const refreshBtn = document.getElementById('refresh-videos-btn') as HTMLButtonElement;
-    const logoutBtn = document.getElementById('logout-btn') as HTMLAnchorElement;
-
-    const isAuthenticated = this.youtubeAPI.isLoggedIn();
-
-    if (refreshBtn) {
-      refreshBtn.disabled = !isAuthenticated;
-      if (!isAuthenticated) {
-        refreshBtn.style.opacity = '0.5';
-        refreshBtn.style.cursor = 'default';
-        refreshBtn.title = rendererI18n.t('tooltips.authRequired');
-      } else {
-        refreshBtn.style.opacity = '1';
-        refreshBtn.style.cursor = 'pointer';
-        refreshBtn.title = '';
-      }
-    }
-
-    if (logoutBtn) {
-      if (!isAuthenticated) {
-        logoutBtn.style.opacity = '0.5';
-        logoutBtn.style.cursor = 'default';
-        logoutBtn.style.pointerEvents = 'none';
-        logoutBtn.title = rendererI18n.t('tooltips.authRequired');
-      } else {
-        logoutBtn.style.opacity = '1';
-        logoutBtn.style.cursor = 'pointer';
-        logoutBtn.style.pointerEvents = 'auto';
-        logoutBtn.title = '';
-      }
-    }
+    headerUi.updateAuthDependentButtons(this.youtubeAPI.isLoggedIn());
   }
 
   private updateSaveAllButton(): void {
-    const saveAllBtn = document.getElementById('save-all-btn') as HTMLButtonElement;
-    const changesCount = document.getElementById('changes-count');
-
-    if (saveAllBtn) {
-      if (this.state.changedVideos.size > 0) {
-        saveAllBtn.style.display = 'inline-flex';
-        saveAllBtn.disabled = this.batchSaveInProgress;
-      } else {
-        saveAllBtn.style.display = 'none';
-      }
-    }
-
-    if (changesCount) {
-      changesCount.textContent = '(' + this.state.changedVideos.size.toString() + ')';
-    }
+    headerUi.updateSaveAllButton(this.state.changedVideos.size, this.batchSaveInProgress);
   }
 
   private hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string, savedLatitude?: number, savedLongitude?: number, savedLicense?: string, savedDefaultLanguage?: string): boolean {
@@ -719,40 +678,19 @@ class YouTubeBatchManager {
   }
 
   toggleMobileMenu(): void {
-    const menu = document.getElementById('mobile-menu');
-    const burgerMenu = document.querySelector('.burger-menu');
-
-    if (menu) {
-      menu.classList.toggle('hide');
-
-      if (burgerMenu) {
-        burgerMenu.classList.toggle('active');
-        // Reflect the open/closed state for assistive tech. The menu is open
-        // when it does NOT carry the `hide` class.
-        burgerMenu.setAttribute('aria-expanded', String(!menu.classList.contains('hide')));
-      }
-    }
+    headerUi.toggleMobileMenu();
   }
 
   toggleDropdown(): void {
-    const dropdown = document.querySelector('.dropdown');
-    if (dropdown) {
-      dropdown.classList.toggle('show');
-    }
+    headerUi.toggleDropdown();
   }
 
   toggleFileDropdown(): void {
-    const dropdown = document.querySelector('.dropdown:last-of-type');
-    if (dropdown) {
-      dropdown.classList.toggle('show');
-    }
+    headerUi.toggleFileDropdown();
   }
 
   closeDropdowns(): void {
-    const dropdowns = document.querySelectorAll('.dropdown');
-    dropdowns.forEach(dropdown => {
-      dropdown.classList.remove('show');
-    });
+    headerUi.closeDropdowns();
   }
 
   async sortVideos(sortType: string): Promise<void> {
@@ -1063,25 +1001,6 @@ class YouTubeBatchManager {
     this.clearTemporaryChanges();
   }
 
-  // Reset the channel header back to its pre-login placeholder (A26): shared
-  // by logout() and removeSavedCredentials().
-  private resetChannelHeader(): void {
-    const channelName = document.getElementById('channel-name');
-    if (channelName) {
-      channelName.setAttribute('data-i18n', 'app.loading');
-      channelName.textContent = 'Loading...';
-    }
-
-    const channelInfo = document.getElementById('channel-info');
-    const mainContent = document.getElementById('main-content');
-    if (channelInfo) {
-      channelInfo.classList.remove('show');
-    }
-    if (mainContent) {
-      mainContent.classList.remove('with-channel');
-    }
-  }
-
   // Shared signed-out video-list placeholder (A26): prompt for authentication
   // when credentials exist, otherwise show the empty "no videos" notice. The
   // template's indentation matches the original logout/removeSavedCredentials
@@ -1105,7 +1024,7 @@ class YouTubeBatchManager {
     try {
       this.clearSessionAndVideoState();
       this.updateAuthDependentButtons();
-      this.resetChannelHeader();
+      headerUi.resetChannelHeader();
       this.showSignedOutVideoList();
       showStatus(rendererI18n.t('status.loggedOut'), 'success');
     } catch {
@@ -1145,7 +1064,7 @@ class YouTubeBatchManager {
       // Same core as logout(); only the status message differs (and, as before
       // the A26 extraction, no auth-button refresh on this path).
       this.clearSessionAndVideoState();
-      this.resetChannelHeader();
+      headerUi.resetChannelHeader();
       this.showSignedOutVideoList();
       showStatus(rendererI18n.t('status.credentialsRemoved'), 'success');
     } catch {
