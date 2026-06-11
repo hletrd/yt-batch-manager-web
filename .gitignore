@@ -1,8 +1,7 @@
-node_modules
-dist
 
+.omce2e/node_modules
 .vscode
 **/.DS_Store
-
 # Local orchestrator/agent state (review-plan-fix tooling)
-.omc
+dist
+node_modules

@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com; form-action 'self' https://accounts.google.com">
+  <!-- frame-ancestors is intentionally absent: it is ignored in a <meta> CSP
+       (HTTP-header only) and merely produced a console warning. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com; form-action 'self' https://accounts.google.com">
   <script>
     // Set <html lang> before any app JS loads so assistive tech sees the right
     // language from first paint (B14). Mirrors detectSystemLanguage() in
