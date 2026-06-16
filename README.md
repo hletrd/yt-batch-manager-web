@@ -160,7 +160,8 @@ the rendered inline handlers call):
 | `i18n/` | English/Korean strings and the runtime renderer |
 
 See [`AGENTS.md`](./AGENTS.md) for the architecture notes and the YouTube Data
-API gotchas this app has to work around.
+API gotchas this app has to work around, and [`CHANGELOG.md`](./CHANGELOG.md)
+for the list of notable changes.
 
 ---
 

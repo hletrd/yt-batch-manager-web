@@ -55,6 +55,7 @@ workarounds.
    `400 "Request metadata is invalid"` (a deceptive error — it blocks title,
    description, everything). The app only sends a language field when it carries
    a real code. There is no way to set these back to empty via the API.
+   *(Confirmed against a live account: saving a language-unset video succeeds.)*
 
 3. **`recordingDetails` empty-body wipes the date.** Because of rule 1, attaching
    a `recordingDetails` part with an empty body deletes an existing
