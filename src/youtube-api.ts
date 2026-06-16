@@ -979,10 +979,18 @@ export class YouTubeAPI {
       if (updates.tags !== undefined) {
         requestBody.snippet.tags = updates.tags;
       }
-      if (updates.defaultAudioLanguage !== undefined) {
+      // Language codes must be valid BCP-47. The "Auto"/unset option is an empty
+      // string, which is NOT a valid code: sending defaultLanguage:"" (or
+      // defaultAudioLanguage:"") makes videos.update reject the ENTIRE request
+      // with 400 "Request metadata is invalid" — a deceptive error that blocks
+      // the whole save (title, description, tags, everything). Only send a
+      // language field when it carries a real code; an empty value means "leave
+      // it as-is" (YouTube has no way to represent the audio/default language as
+      // empty anyway, so there is nothing to clear).
+      if (updates.defaultAudioLanguage) {
         requestBody.snippet.defaultAudioLanguage = updates.defaultAudioLanguage;
       }
-      if (updates.default_language !== undefined) {
+      if (updates.default_language) {
         requestBody.snippet.defaultLanguage = updates.default_language;
       }
       if (updates.privacy_status !== undefined) {

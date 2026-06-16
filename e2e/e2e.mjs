@@ -1,12 +1,5 @@
-// E2E flow verification with a fully mocked Google/YouTube backend — no real
-// credentials needed. Covers: OAuth start (PKCE S256), code->token exchange,
-// video load chain, rendering (badges/fields), save PUT bodies (incl. the
-// recordingDetails changed-flag semantics), 401 silent-refresh-retry, cache
-// reload, quota-403 messaging, and logout.
-//
-// Run:
-//   npm run build && npx http-server dist -p 8753 -c-1 &
-//   cd e2e && npm init -y && npm i playwright && node e2e.mjs
+// E2E flow verification for yt-batch-manager-web with a fully mocked
+// Google/YouTube backend (no real credentials). Run: node e2e.mjs
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 
@@ -187,6 +180,9 @@ const run = async () => {
   ok('5c. status fields round-tripped', put1.body.status?.license === 'youtube' && put1.body.status?.embeddable === true && put1.body.status?.publicStatsViewable === true && put1.body.status?.privacyStatus === 'public');
   ok('5d. NO recordingDetails on incidental save', !put1.part.includes('recordingDetails') && !('recordingDetails' in put1.body), JSON.stringify(put1));
   ok('5e. selfDeclaredMadeForKids never sent', !('selfDeclaredMadeForKids' in (put1.body.status || {})));
+  // VID_A has defaultAudioLanguage 'en' and no defaultLanguage: a valid code is
+  // sent, but the empty one must be omitted (else 400 "Request metadata invalid").
+  ok('5f. valid audio lang sent, empty default lang omitted', put1.body.snippet?.defaultAudioLanguage === 'en' && !('defaultLanguage' in (put1.body.snippet || {})), JSON.stringify(put1.body.snippet));
 
   // ---- 6. Clear recording date -> save: empty recordingDetails propagates ----
   await page.fill(`#recording-date-${VID_A}`, '');
