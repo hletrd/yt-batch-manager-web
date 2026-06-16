@@ -108,6 +108,60 @@ npm run dev
 
 The application will launch and prompt for Google OAuth authentication on first run.
 
+#### Build, lint, and type-check
+
+```bash
+npm run build          # tsc -p tsconfig.json + copy static assets + generate docs
+npm run lint           # eslint over src/**/*.ts
+npx tsc -p tsconfig.json   # type-check only
+```
+
+There is no bundler: TypeScript compiles to native browser ES modules
+(`<script type="module">` with `.js`-extension imports), and `dist/` is served
+as-is. Pushing to `master` auto-deploys to GitHub Pages via
+`.github/workflows/deploy.yml`.
+
+#### End-to-end tests
+
+`e2e/` contains Playwright flow tests that run against a fully mocked
+Google/YouTube backend, so **no real credentials or quota are needed**. They
+cover the OAuth + PKCE handshake, token exchange, the video-load chain,
+rendering, the `videos.update` request bodies, 401 silent-refresh-retry, cache
+reload, quota-403 messaging, and logout.
+
+```bash
+npm run build
+npx http-server dist -p 8753 -c-1 &     # serve the build
+npx http-server dist -p 8754 -c-1 &     # second port for the focused regression test
+cd e2e && npm init -y && npm i playwright
+node e2e.mjs                 # full flow suite (port 8753)
+node regression-language.mjs # focused: empty language codes are omitted (port 8754)
+```
+
+#### Source layout
+
+The UI logic lives in small single-purpose ES modules orchestrated by
+`src/app.ts` (the `YouTubeBatchManager` facade exposed as `window.app`, which
+the rendered inline handlers call):
+
+| Module | Responsibility |
+| --- | --- |
+| `youtube-api.ts` | All YouTube Data API calls, OAuth/PKCE, token storage & refresh |
+| `app.ts` | Orchestrator/facade; wires the modules and owns app state |
+| `video-card.ts` | Per-video card HTML template and option/image generators |
+| `video-form.ts` | Reads a card's form into the `videos.update` payload |
+| `tags.ts` | Tag chips: render, add/remove, copy |
+| `temp-changes.ts` | Persist/restore unsaved edits across the OAuth redirect |
+| `video-cache.ts` | `localStorage` video cache (save/load/validate/clear) |
+| `backup.ts` | JSON export field filter + import validation/sanitization |
+| `header-ui.ts`, `global-events.ts`, `ui-feedback.ts`, `theme.ts` | Header/menu, delegated events, toasts/overlays, theme toggle |
+| `textarea-resize.ts`, `fallback-data.ts` | rAF-throttled auto-resize; offline category/language fallbacks |
+| `utils/format.ts`, `utils/html.ts` | Duration/number formatting & Shorts heuristic; HTML/attribute escaping |
+| `i18n/` | English/Korean strings and the runtime renderer |
+
+See [`AGENTS.md`](./AGENTS.md) for the architecture notes and the YouTube Data
+API gotchas this app has to work around.
+
 ---
 
 ## Troubleshooting
@@ -118,3 +172,18 @@ The application will launch and prompt for Google OAuth authentication on first 
 
 ### "403 Forbidden" / quota exceeded when loading videos
 The YouTube Data API has a default quota of 10,000 units/day. The app lists your uploads efficiently (about 9 units per full load), so this is rarely hit. If you do see a `403 quotaExceeded`, the daily quota resets at midnight Pacific Time, or you can request a higher quota in the Google Cloud Console.
+
+### Recording date or location doesn't appear in YouTube Studio
+YouTube has **deprecated the recording-location latitude/longitude** fields:
+`videos.update` still accepts them without error, but they may not surface in
+Studio. The recording **date** is applied. This is a YouTube API limitation, not
+an app bug.
+
+### Saving a video doesn't change anything (or used to error)
+`videos.update` replaces a whole part and **deletes any property omitted from
+the request**, and it rejects empty values for some fields (e.g. an empty
+language code returns a deceptive `400 "Request metadata is invalid"`). The app
+works around these by round-tripping the existing status fields, only sending
+`recordingDetails` when the date/location actually changed, and omitting empty
+language codes. If you hit a save error, capture the request body and check it
+against these rules — `AGENTS.md` documents them.
