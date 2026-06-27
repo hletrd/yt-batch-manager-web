@@ -92,7 +92,8 @@
     "latitude": "Latitude",
     "longitude": "Longitude",
     "useCurrentLocation": "Use current location",
-    "viewOnMap": "View on map"
+    "viewOnMap": "View on map",
+    "replaceThumbnail": "Replace thumbnail"
   },
   "license": {
     "standard": "Standard YouTube License",
@@ -123,6 +124,11 @@
     "videosImported": "Imported {count} videos",
     "tagsCopied": "Copied {count} tags to clipboard",
     "noTagsToCopy": "No tags to copy",
+    "thumbnailUploading": "Uploading thumbnail…",
+    "thumbnailUpdated": "Thumbnail updated",
+    "thumbnailFailed": "Thumbnail upload failed: {error}",
+    "thumbnailTooLarge": "Thumbnail must be 2 MB or smaller",
+    "thumbnailInvalidType": "Thumbnail must be a JPEG or PNG image",
     "geolocationUnavailable": "Geolocation is not available in this browser",
     "geolocationFailed": "Could not get your current location",
     "noLocationSet": "No location set for this video",

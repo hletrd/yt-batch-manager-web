@@ -696,6 +696,30 @@ export class YouTubeAPI {
     return response.json();
   }
 
+  /**
+   * Replace a video's custom thumbnail (thumbnails.set). This is a simple media
+   * upload: the raw image bytes are the request body and Content-Type is the
+   * image MIME type, so it hits the /upload/ host rather than the data API host.
+   * The youtube.force-ssl scope already covers it; the channel must be verified
+   * to use custom thumbnails (otherwise YouTube returns 403).
+   */
+  async setThumbnail(videoId: string, image: Blob): Promise<void> {
+    if (!this.isAuthenticated || !this.accessToken) {
+      throw new Error('Not authenticated');
+    }
+
+    await this.ensureValidToken();
+
+    const response = await this.authedFetch(
+      `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}`,
+      { method: 'POST', body: image, headers: { 'Content-Type': image.type || 'image/jpeg' } }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.describeError(response, 'Failed to set thumbnail'));
+    }
+  }
+
   // Default Infinity = load the channel's entire uploads playlist. Paging
   // playlistItems.list is 1 quota unit per page, so fetching every video is
   // cheap; the loop simply runs until there is no nextPageToken.

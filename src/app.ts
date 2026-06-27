@@ -1046,6 +1046,54 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  // Thumbnail replacement is an immediate action (not part of the batched
+  // "Save changes" flow): validate the file client-side, POST it to
+  // thumbnails.set, then swap the card image to the local file for instant
+  // feedback (YouTube's thumbnail CDN lags behind the API by minutes).
+  async handleThumbnailUpload(videoId: string, input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+
+    if (!/^image\/(jpeg|png)$/.test(file.type)) {
+      showStatus(rendererI18n.t('status.thumbnailInvalidType'), 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showStatus(rendererI18n.t('status.thumbnailTooLarge'), 'error');
+      return;
+    }
+
+    const btn = document.querySelector(
+      `#video-${videoId} .thumbnail-replace-btn`
+    ) as HTMLButtonElement | null;
+    if (btn) {
+      btn.disabled = true;
+    }
+    showStatus(rendererI18n.t('status.thumbnailUploading'), 'info');
+
+    try {
+      await this.youtubeAPI.setThumbnail(videoId, file);
+      const img = document.querySelector(
+        `#video-${videoId} .video-thumbnail img`
+      ) as HTMLImageElement | null;
+      if (img) {
+        img.removeAttribute('srcset');
+        img.src = URL.createObjectURL(file);
+      }
+      showStatus(rendererI18n.t('status.thumbnailUpdated'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showStatus(rendererI18n.t('status.thumbnailFailed', { error: message }), 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+      }
+    }
+  }
+
   useCurrentLocation(videoId: string): void {
     if (!navigator.geolocation) {
       showStatus(rendererI18n.t('status.geolocationUnavailable'), 'error');

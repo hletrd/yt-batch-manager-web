@@ -96,6 +96,8 @@ export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContex
           <div class="video-header">
             <div class="video-thumbnail">
               ${generateResponsiveImageHtml(video)}
+              <input type="file" id="thumb-input-${video.id}" class="thumbnail-input" accept="image/jpeg,image/png" hidden onchange="app.handleThumbnailUpload('${video.id}', this)" />
+              <button type="button" class="thumbnail-replace-btn" onclick="document.getElementById('thumb-input-${video.id}').click()" data-i18n="video.replaceThumbnail">Replace thumbnail</button>
             </div>
             <div class="video-info">
               <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="video-id-link">
