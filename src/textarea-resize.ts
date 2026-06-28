@@ -31,13 +31,3 @@ export function resizeTextareaNow(textarea: HTMLTextAreaElement): void {
   const newHeight = Math.max(textarea.scrollHeight, minHeight);
   textarea.style.height = newHeight + 'px';
 }
-
-export function initializeTextarea(videoId: string): void {
-  const textarea = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
-  if (textarea) {
-    autoResizeTextarea(textarea);
-    textarea.addEventListener('input', () => {
-      autoResizeTextarea(textarea);
-    });
-  }
-}
