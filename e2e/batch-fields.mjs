@@ -30,11 +30,12 @@ const videoItem = (id, opts) => ({
     ...(opts.publishAt ? { publishAt: opts.publishAt } : {})
   },
   contentDetails: { duration: 'PT5M' },
-  statistics: { viewCount: '10', likeCount: '1', commentCount: '0' }
+  statistics: { viewCount: '10', likeCount: '1', commentCount: '0' },
+  ...(opts.recordingDate ? { recordingDetails: { recordingDate: opts.recordingDate } } : {})
 });
 
 const fixtures = [
-  videoItem(VID_S, { title: 'Scheduled video', privacy: 'private', publishAt: SCHEDULE }),
+  videoItem(VID_S, { title: 'Scheduled video', privacy: 'private', publishAt: SCHEDULE, recordingDate: '2023-05-10T00:00:00.000Z' }),
   videoItem(VID_P, { title: 'Public video', privacy: 'public', tags: ['keep', 'these'] })
 ];
 
@@ -159,6 +160,7 @@ ok('S2. JSON export carries publish_at', json1.find(v => v.id === VID_S)?.publis
 await page.fill(`#title-${VID_S}`, 'Scheduled video EDITED');
 const putS1 = await saveCard(VID_S);
 ok('S3. title-only save keeps the schedule', putS1?.body.status?.publishAt === '2030-01-01T09:00:00.000Z' && putS1?.body.status?.privacyStatus === 'private', JSON.stringify(putS1?.body.status));
+ok('S3b. ...and does not touch recordingDetails', putS1 && !putS1.part.includes('recordingDetails'), putS1?.part);
 
 await page.selectOption(`#privacy-${VID_S}`, 'unlisted');
 const putS2 = await saveCard(VID_S);
@@ -195,6 +197,30 @@ const putsF6 = await saveAll();
 const putF6 = putsF6[0];
 ok('F6. save all sends one PUT', putsF6.length === 1, JSON.stringify(putsF6.map(p => p.body.id)));
 ok('F6b. JSON status edits are written', putF6?.body.id === VID_P && putF6.body.status.publicStatsViewable === false && putF6.body.status.selfDeclaredMadeForKids === false && putF6.body.status.embeddable === false, JSON.stringify(putF6?.body.status));
+
+// ---- Partial / hand-edited JSON keeps the live values ----
+await importJson([
+  { id: VID_P, title: 'Only the title changed' },
+  {
+    id: VID_S, tags: 'alpha, beta ,', latitude: '37.5', longitude: 127, recording_date: 'not a date',
+    license: 'bogus', category_id: 44, upload_status: '<img id="pwned" src=x>', statistics: { view_count: '<b id="pwned2">' }
+  }
+]);
+ok('P1. both edited videos marked', JSON.stringify(await changedIds()) === JSON.stringify([VID_P, VID_S].sort()), JSON.stringify(await changedIds()));
+ok('P2. omitted fields keep the live values', await page.locator(`#description-${VID_P}`).inputValue() === 'desc ' + VID_P &&
+  await page.locator(`#privacy-${VID_P}`).inputValue() === 'public' && await page.locator(`#tags-container-${VID_P} .tag-chip`).count() === 2);
+ok('P3. comma-separated tags + numeric-string coordinates accepted',
+  await page.locator(`#tags-container-${VID_S} .tag-chip`).count() === 2 && await page.locator(`#latitude-${VID_S}`).inputValue() === '37.5');
+ok('P4. unlisted category id stays selected', await page.locator(`#category-${VID_S}`).inputValue() === '44');
+ok('P5. invalid license/date fall back to live values', await page.locator(`#license-${VID_S}`).inputValue() === 'youtube' && await page.locator(`#recording-date-${VID_S}`).inputValue() === '2023-05-10');
+ok('P6. read-only fields never come from the file', await page.locator('#pwned, #pwned2').count() === 0);
+const putsP = await saveAll();
+const putP = putsP.find(x => x.body.id === VID_P);
+const putS = putsP.find(x => x.body.id === VID_S);
+ok('P7. partial save keeps description/tags/privacy/status', putP?.body.snippet?.title === 'Only the title changed' && putP.body.snippet.description === 'desc ' + VID_P &&
+  JSON.stringify(putP.body.snippet.tags) === '["keep","these"]' && putP.body.status.privacyStatus === 'public' && putP.body.status.embeddable === false, JSON.stringify(putP?.body));
+ok('P8. hand-edited values are sent normalized', JSON.stringify(putS?.body.snippet?.tags) === '["alpha","beta"]' && putS.body.snippet.categoryId === '44' &&
+  putS.body.recordingDetails?.location?.latitude === 37.5 && putS.body.recordingDetails.recordingDate === '2023-05-10T00:00:00.000Z' && putS.body.status.license === 'youtube', JSON.stringify(putS?.body));
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 

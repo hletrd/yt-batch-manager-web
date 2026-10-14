@@ -22,6 +22,17 @@ export interface VideoCardRenderContext {
   changedVideos: Set<string>;
 }
 
+// A selected id missing from the option list (e.g. from a backup, or when the
+// catalog failed to load and the fallback is shorter) would leave the select on
+// its placeholder, and saving would then silently drop or reset the value.
+// Keep it selectable under its raw id instead (cf. setSelectValuePreservingChoice).
+function unlistedSelectedOption(catalog: Record<string, unknown>, selectedId: string | undefined): string {
+  if (!selectedId || Object.prototype.hasOwnProperty.call(catalog, selectedId)) {
+    return '';
+  }
+  return `<option value="${escapeHtmlAttribute(selectedId)}" selected>${escapeHtml(selectedId)}</option>`;
+}
+
 export function generateCategoryOptions(videoCategories: Record<string, { id: string; title: string }>, selectedCategoryId: string): string {
   // Escape the API-sourced id/title before they enter option markup. The data
   // comes from videoCategories.list (or the fallback map), but escaping keeps
@@ -30,7 +41,7 @@ export function generateCategoryOptions(videoCategories: Record<string, { id: st
   const options = Object.values(videoCategories).map(category =>
     `<option value="${escapeHtmlAttribute(category.id)}" ${category.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(category.title)}</option>`
   );
-  return `<option value="">${escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}`;
+  return `<option value="">${escapeHtml(rendererI18n.t('form.selectCategory'))}</option>${options.join('')}${unlistedSelectedOption(videoCategories, selectedCategoryId)}`;
 }
 
 export function generateLanguageOptions(i18nLanguages: Record<string, { id: string; name: string }>, selectedLanguageId?: string): string {
@@ -40,7 +51,7 @@ export function generateLanguageOptions(i18nLanguages: Record<string, { id: stri
   const options = Object.values(i18nLanguages).map(language =>
     `<option value="${escapeHtmlAttribute(language.id)}" ${language.id === selectedLanguageId ? 'selected' : ''}>${escapeHtml(language.name)}</option>`
   );
-  return `<option value="">${escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
+  return `<option value="">${escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}${unlistedSelectedOption(i18nLanguages, selectedLanguageId)}`;
 }
 
 // Yes/No options for a boolean status field. An unknown value (a file import

@@ -830,9 +830,10 @@ class YouTubeBatchManager {
       return;
     }
 
-    // Validation + field-level sanitization live in src/backup.ts (A11). An
+    // Validation + field-level sanitization live in src/backup.ts (A11). Fields
+    // the file omits (or sets invalidly) keep the loaded YouTube baseline. An
     // empty result means no record had a valid id; nothing is rendered.
-    videoData = backup.sanitizeImportedVideos(videoData);
+    videoData = backup.sanitizeImportedVideos(videoData, this.originalVideosState);
 
     if (videoData.length === 0) {
       showStatus(rendererI18n.t('status.invalidVideoData'), 'error');
