@@ -48,7 +48,6 @@ class YouTubeBatchManager {
   };
   private youtubeAPI: YouTubeAPI;
   private batchSaveInProgress: boolean = false;
-  private skipCacheUpdates: boolean = false;
   // Provenance of state.allVideos. Backup imports are thin records (no
   // statistics/thumbnails/duration/upload_status), so cache persistence is
   // limited to YouTube-sourced sets (C2).
@@ -689,7 +688,6 @@ class YouTubeBatchManager {
     }
 
     this.batchSaveInProgress = true;
-    this.skipCacheUpdates = true;
     this.updateSaveAllButton();
 
     const changedVideosArray = Array.from(this.state.changedVideos);
@@ -725,35 +723,39 @@ class YouTubeBatchManager {
         rendererI18n.t('status.processingVideo', { videoNumber: i + 1 })
       );
 
-      try {
-        await this.updateVideo(videoId, true);
+      // saveVideoFromCard reports failure by its result, not by throwing (a
+      // try/catch here used to count every failed save as a success).
+      const error = await this.saveVideoFromCard(videoId);
+      if (error === undefined) {
         successCount++;
-      } catch (error) {
+      } else {
         errorCount++;
-        errors.push(`Video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(`Video ${videoId}: ${error}`);
       }
 
       processedCount++;
     }
 
     this.batchSaveInProgress = false;
-    this.skipCacheUpdates = false;
     hideLoadingOverlay();
 
+    // Surface the first failure's reason (e.g. quota, or an unverified channel
+    // for thumbnails) so a partial failure is actionable.
+    const firstError = errors.length > 0 ? ` — ${errors[0]}` : '';
     if (successCount > 0) {
       showStatus(
         rendererI18n.t('status.batchSaveComplete', {
           successful: successCount,
           failed: errorCount,
           total: processedCount
-        }),
+        }) + firstError,
         errorCount === 0 ? 'success' : 'info'
       );
 
       this.updateVideoCache();
     } else {
       showStatus(
-        rendererI18n.t('status.batchSaveFailed', { failed: errorCount }),
+        rendererI18n.t('status.batchSaveFailed', { failed: errorCount }) + firstError,
         'error'
       );
     }
@@ -1242,10 +1244,24 @@ class YouTubeBatchManager {
     tags.removeTag(this.tagDeps, videoId, tagText);
   }
 
-  async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<void> {
-    const video = this.getVideo(videoId);
-    if (!video) return;
+  // Inline-handler entry point for a card's Update button. Resolves to whether
+  // the save succeeded.
+  async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<boolean> {
+    const error = await this.saveVideoFromCard(videoId);
+    if (error === undefined) {
+      if (!suppressStatus) {
+        showStatus(rendererI18n.t('status.videoUpdated'), 'success');
+      }
+      this.updateVideoCache();
+    } else if (!suppressStatus) {
+      showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + error, 'error');
+    }
+    return error === undefined;
+  }
 
+  // Save one video and update its card (busy button, changed marker).
+  // Resolves to the failure reason, or undefined on success; never throws.
+  private async saveVideoFromCard(videoId: string): Promise<string | undefined> {
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
     if (updateBtn) {
@@ -1254,79 +1270,76 @@ class YouTubeBatchManager {
     }
 
     try {
-      // videos.update replaces the whole `status` part, deleting any omitted
-      // property. For a video imported from a file with no YouTube-loaded
-      // baseline, status fields the file left unset (older backups lack
-      // license/embeddable/public_stats_viewable/publish_at) are unknown
-      // locally, so re-sending them as undefined would wipe them on YouTube —
-      // including cancelling a scheduled publish. Backfill those from the live
-      // status before building the request, into the baseline as well so the
-      // backfilled values do not register as user edits.
-      if (this.unverifiedStatusIds.has(videoId) || (video.license === undefined && video.embeddable === undefined && video.public_stats_viewable === undefined)) {
-        const liveStatus = await this.youtubeAPI.getVideoStatus(videoId);
-        if (liveStatus) {
-          const baseline = this.originalVideosState.get(videoId);
-          for (const target of baseline ? [video, baseline] : [video]) {
-            target.license ??= liveStatus.license;
-            target.embeddable ??= liveStatus.embeddable;
-            target.public_stats_viewable ??= liveStatus.public_stats_viewable;
-            target.made_for_kids ??= liveStatus.made_for_kids;
-            target.publish_at ??= liveStatus.publish_at;
-          }
-          this.unverifiedStatusIds.delete(videoId);
-        }
+      await this.saveVideo(videoId);
+      this.unmarkChanged(videoId);
+      if (updateBtn) {
+        updateBtn.style.display = 'none';
       }
-
-      // Form reading + payload assembly live in src/video-form.ts (A11).
-      const { updates, recordingDetailsChanged, madeForKidsChanged } = collectVideoUpdates(videoId, video, this.originalVideosState.get(videoId) ?? video);
-
-      const result = await this.youtubeAPI.updateVideo(videoId, {
-        ...updates,
-        recording_details_changed: recordingDetailsChanged,
-        self_declared_made_for_kids: madeForKidsChanged ? updates.made_for_kids : undefined
-      });
-
-      if (result.success) {
-        Object.assign(video, updates);
-
-        // Deep snapshot (see loadVideos): keep the baseline independent of the
-        // live record's nested objects (B12).
-        this.originalVideosState.set(videoId, structuredClone(video));
-
-        const videoTitleEl = document.querySelector(`[data-video-id="${videoId}"] .video-title`);
-        if (videoTitleEl) {
-          videoTitleEl.textContent = updates.title;
-        }
-
-        this.unmarkChanged(videoId);
-
-        if (updateBtn) {
-          updateBtn.style.display = 'none';
-        }
-
-        if (!suppressStatus) {
-          showStatus(rendererI18n.t('status.videoUpdated'), 'success');
-        }
-
-        if (!this.skipCacheUpdates) {
-          this.updateVideoCache();
-        }
-      } else {
-        if (!suppressStatus) {
-          showStatus(result.error || rendererI18n.t('status.failedToUpdateVideo'), 'error');
-        }
-        this.checkForChanges(videoId);
-      }
+      return undefined;
     } catch (error) {
-      if (!suppressStatus) {
-        showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
-      }
       this.checkForChanges(videoId);
+      return error instanceof Error ? error.message : 'Unknown error';
     } finally {
       if (updateBtn) {
         updateBtn.textContent = rendererI18n.t('buttons.updateVideoInfo');
         updateBtn.disabled = false;
       }
+    }
+  }
+
+  // Send one video's edits to YouTube and adopt them as the new baseline.
+  // Throws on failure.
+  private async saveVideo(videoId: string): Promise<void> {
+    const video = this.getVideo(videoId);
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    // videos.update replaces the whole `status` part, deleting any omitted
+    // property. For a video imported from a file with no YouTube-loaded
+    // baseline, status fields the file left unset (older backups lack
+    // license/embeddable/public_stats_viewable/publish_at) are unknown
+    // locally, so re-sending them as undefined would wipe them on YouTube —
+    // including cancelling a scheduled publish. Backfill those from the live
+    // status before building the request, into the baseline as well so the
+    // backfilled values do not register as user edits.
+    if (this.unverifiedStatusIds.has(videoId) || (video.license === undefined && video.embeddable === undefined && video.public_stats_viewable === undefined)) {
+      const liveStatus = await this.youtubeAPI.getVideoStatus(videoId);
+      if (liveStatus) {
+        const baseline = this.originalVideosState.get(videoId);
+        for (const target of baseline ? [video, baseline] : [video]) {
+          target.license ??= liveStatus.license;
+          target.embeddable ??= liveStatus.embeddable;
+          target.public_stats_viewable ??= liveStatus.public_stats_viewable;
+          target.made_for_kids ??= liveStatus.made_for_kids;
+          target.publish_at ??= liveStatus.publish_at;
+        }
+        this.unverifiedStatusIds.delete(videoId);
+      }
+    }
+
+    // Form reading + payload assembly live in src/video-form.ts (A11).
+    const { updates, recordingDetailsChanged, madeForKidsChanged } = collectVideoUpdates(videoId, video, this.originalVideosState.get(videoId) ?? video);
+
+    const result = await this.youtubeAPI.updateVideo(videoId, {
+      ...updates,
+      recording_details_changed: recordingDetailsChanged,
+      self_declared_made_for_kids: madeForKidsChanged ? updates.made_for_kids : undefined
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || rendererI18n.t('status.failedToUpdateVideo'));
+    }
+
+    Object.assign(video, updates);
+
+    // Deep snapshot (see loadVideos): keep the baseline independent of the
+    // live record's nested objects (B12).
+    this.originalVideosState.set(videoId, structuredClone(video));
+
+    const videoTitleEl = document.querySelector(`[data-video-id="${videoId}"] .video-title`);
+    if (videoTitleEl) {
+      videoTitleEl.textContent = updates.title;
     }
   }
 

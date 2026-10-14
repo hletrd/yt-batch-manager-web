@@ -61,8 +61,15 @@ await ctx.addInitScript(([schedule, id]) => {
 const page = await ctx.newPage();
 
 const pageErrors = [];
+// The batch-failure test deliberately arms a 400; its resource error and the
+// app's batch error log are expected, not regressions.
+const EXPECTED = [/status of 400/, /Batch save errors/];
 page.on('pageerror', e => pageErrors.push('pageerror: ' + e.message));
-page.on('console', m => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()); });
+page.on('console', m => {
+  if (m.type() !== 'error' || EXPECTED.some(re => re.test(m.text()))) return;
+  pageErrors.push('console: ' + m.text());
+});
+let failPutFor = null;
 
 await page.route('**/*', r => r.request().url().startsWith(APP) ? r.continue() : r.abort());
 // Thumbnail CDN: serve a 1x1 PNG with the CORS header i.ytimg.com really sends
@@ -73,7 +80,12 @@ await page.route('https://www.googleapis.com/**', async r => {
   const u = new URL(r.request().url());
   const part = u.searchParams.get('part') || '';
   if (u.pathname.endsWith('/videos') && r.request().method() === 'PUT') {
-    puts.push({ part, body: JSON.parse(r.request().postData() || '{}') });
+    const body = JSON.parse(r.request().postData() || '{}');
+    if (body.id === failPutFor) {
+      failPutFor = null;
+      return r.fulfill({ status: 400, json: { error: { errors: [{ reason: 'invalidMetadata' }], message: 'Request metadata is invalid.' } } });
+    }
+    puts.push({ part, body });
     return r.fulfill({ json: {} });
   }
   if (u.pathname.endsWith('/channels')) {
@@ -221,6 +233,15 @@ ok('P7. partial save keeps description/tags/privacy/status', putP?.body.snippet?
   JSON.stringify(putP.body.snippet.tags) === '["keep","these"]' && putP.body.status.privacyStatus === 'public' && putP.body.status.embeddable === false, JSON.stringify(putP?.body));
 ok('P8. hand-edited values are sent normalized', JSON.stringify(putS?.body.snippet?.tags) === '["alpha","beta"]' && putS.body.snippet.categoryId === '44' &&
   putS.body.recordingDetails?.location?.latitude === 37.5 && putS.body.recordingDetails.recordingDate === '2023-05-10T00:00:00.000Z' && putS.body.status.license === 'youtube', JSON.stringify(putS?.body));
+
+// ---- Batch save reports a rejected video as failed ----
+await page.fill(`#title-${VID_P}`, 'Batch P');
+await page.fill(`#title-${VID_S}`, 'Batch S');
+failPutFor = VID_S;
+await saveAll();
+const batchMsg = await statusText();
+ok('B1. failed save counted as failed', /1 successful, 1 failed/.test(batchMsg) && batchMsg.includes('Request metadata is invalid'), batchMsg);
+ok('B2. failed video stays marked changed', JSON.stringify(await changedIds()) === JSON.stringify([VID_S]), JSON.stringify(await changedIds()));
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 
