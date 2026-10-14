@@ -1140,6 +1140,18 @@ class YouTubeBatchManager {
     this.checkForChanges(videoId);
   }
 
+  handleEmbeddableChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
+  handlePublicStatsChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
+  handleMadeForKidsChange(videoId: string): void {
+    this.checkForChanges(videoId);
+  }
+
   private checkForChanges(videoId: string): void {
     const video = this.getVideo(videoId);
     const original = this.originalVideosState.get(videoId);
@@ -1176,6 +1188,9 @@ class YouTubeBatchManager {
       (video.latitude ?? null) !== (baseline.latitude ?? null) ||
       (video.longitude ?? null) !== (baseline.longitude ?? null) ||
       (video.license || 'youtube') !== (baseline.license || 'youtube') ||
+      (video.embeddable !== undefined && video.embeddable !== baseline.embeddable) ||
+      (video.public_stats_viewable !== undefined && video.public_stats_viewable !== baseline.public_stats_viewable) ||
+      (video.made_for_kids !== undefined && baseline.made_for_kids !== undefined && video.made_for_kids !== baseline.made_for_kids) ||
       (video.default_language || '') !== (baseline.default_language || '') ||
       !arraysEqual(video.tags || [], baseline.tags || [])
     );
@@ -1262,9 +1277,13 @@ class YouTubeBatchManager {
       }
 
       // Form reading + payload assembly live in src/video-form.ts (A11).
-      const { updates, recordingDetailsChanged } = collectVideoUpdates(videoId, video, this.originalVideosState.get(videoId) ?? video);
+      const { updates, recordingDetailsChanged, madeForKidsChanged } = collectVideoUpdates(videoId, video, this.originalVideosState.get(videoId) ?? video);
 
-      const result = await this.youtubeAPI.updateVideo(videoId, { ...updates, recording_details_changed: recordingDetailsChanged });
+      const result = await this.youtubeAPI.updateVideo(videoId, {
+        ...updates,
+        recording_details_changed: recordingDetailsChanged,
+        self_declared_made_for_kids: madeForKidsChanged ? updates.made_for_kids : undefined
+      });
 
       if (result.success) {
         Object.assign(video, updates);
@@ -1354,6 +1373,9 @@ class YouTubeBatchManager {
       handleLicenseChange: (videoId) => this.handleLicenseChange(videoId),
       handleDefaultLanguageChange: (videoId) => this.handleDefaultLanguageChange(videoId),
       handleSyntheticMediaChange: (videoId) => this.handleSyntheticMediaChange(videoId),
+      handleEmbeddableChange: (videoId) => this.handleEmbeddableChange(videoId),
+      handlePublicStatsChange: (videoId) => this.handlePublicStatsChange(videoId),
+      handleMadeForKidsChange: (videoId) => this.handleMadeForKidsChange(videoId),
       autoResizeTextarea: (textarea) => autoResizeTextarea(textarea),
       renderTagsContainer: (videoId) => tags.renderTagsContainer(this.tagDeps, videoId),
       updateTagsCounter: (videoId) => this.updateTagsCounter(videoId),

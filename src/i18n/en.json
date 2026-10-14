@@ -94,7 +94,9 @@
     "useCurrentLocation": "Use current location",
     "viewOnMap": "View on map",
     "replaceThumbnail": "Replace thumbnail",
-    "scheduled": "Scheduled {date}"
+    "scheduled": "Scheduled {date}",
+    "embeddable": "Allow embedding",
+    "publicStatsViewable": "Public stats"
   },
   "license": {
     "standard": "Standard YouTube License",
@@ -173,5 +175,10 @@
   },
   "tooltips": {
     "authRequired": "Authentication required"
+  },
+  "choice": {
+    "yes": "Yes",
+    "no": "No",
+    "keep": "Keep current"
   }
 }

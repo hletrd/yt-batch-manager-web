@@ -157,6 +157,7 @@ interface VideoUpdateRequestBody {
     license?: string;
     embeddable?: boolean;
     publicStatsViewable?: boolean;
+    selfDeclaredMadeForKids?: boolean;
   };
   recordingDetails?: {
     recordingDate?: string;
@@ -982,7 +983,7 @@ export class YouTubeAPI {
     }
   }
 
-  async updateVideo(videoId: string, updates: Partial<VideoData> & { recording_details_changed?: boolean }): Promise<{ success: boolean; error?: string }> {
+  async updateVideo(videoId: string, updates: Partial<VideoData> & { recording_details_changed?: boolean; self_declared_made_for_kids?: boolean }): Promise<{ success: boolean; error?: string }> {
     if (!this.isAuthenticated || !this.accessToken) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -1049,11 +1050,15 @@ export class YouTubeAPI {
       if (updates.public_stats_viewable !== undefined) {
         requestBody.status.publicStatsViewable = updates.public_stats_viewable;
       }
-      // Intentionally NOT writing selfDeclaredMadeForKids: the read-back field is
-      // the *effective* madeForKids value, not the creator's self-declaration, so
-      // round-tripping it on every save could flip a video's COPPA designation.
-      // The UI does not expose this control; omitting it leaves the existing
-      // self-declaration untouched.
+      // selfDeclaredMadeForKids is NOT round-tripped: the read-back field is the
+      // *effective* madeForKids value, not the creator's self-declaration, so
+      // re-sending it on every save could flip a video's COPPA designation.
+      // The caller passes it only when the user explicitly changed the setting;
+      // otherwise it is omitted, which leaves the existing self-declaration
+      // untouched.
+      if (updates.self_declared_made_for_kids !== undefined) {
+        requestBody.status.selfDeclaredMadeForKids = updates.self_declared_made_for_kids;
+      }
 
       const parts = ['snippet', 'status'];
       // recordingDate is ISO 8601 (YouTube keeps only the date portion).

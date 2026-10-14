@@ -43,6 +43,17 @@ export function generateLanguageOptions(i18nLanguages: Record<string, { id: stri
   return `<option value="">${escapeHtml(rendererI18n.t('form.autoLanguage'))}</option>${options.join('')}`;
 }
 
+// Yes/No options for a boolean status field. An unknown value (a file import
+// that omitted it) gets a leading "keep current" option, so leaving it
+// untouched re-sends YouTube's current value instead of a guessed default.
+export function generateBooleanOptions(value: boolean | undefined): string {
+  return [
+    value === undefined ? `<option value="" selected data-i18n="choice.keep">Keep current</option>` : '',
+    `<option value="true" ${value === true ? 'selected' : ''} data-i18n="choice.yes">Yes</option>`,
+    `<option value="false" ${value === false ? 'selected' : ''} data-i18n="choice.no">No</option>`
+  ].join('');
+}
+
 export function generateResponsiveImageHtml(video: VideoData): string {
   // Videos still uploading/processing only have a tiny placeholder thumbnail
   // that looks blurry and stretched when force-upscaled into the 320x180 slot.
@@ -140,6 +151,24 @@ export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContex
                   <select class="language-select" id="license-${video.id}" onchange="app.handleLicenseChange('${video.id}')">
                     <option value="youtube" ${(video.license || 'youtube') === 'youtube' ? 'selected' : ''} data-i18n="license.standard">Standard YouTube License</option>
                     <option value="creativeCommon" ${video.license === 'creativeCommon' ? 'selected' : ''} data-i18n="license.creativeCommon">Creative Commons - Attribution</option>
+                  </select>
+                </div>
+                <div class="language-control">
+                  <label for="embeddable-${video.id}" data-i18n="video.embeddable">Allow embedding</label>
+                  <select class="language-select" id="embeddable-${video.id}" onchange="app.handleEmbeddableChange('${video.id}')">
+                    ${generateBooleanOptions(video.embeddable)}
+                  </select>
+                </div>
+                <div class="language-control">
+                  <label for="public-stats-${video.id}" data-i18n="video.publicStatsViewable">Public stats</label>
+                  <select class="language-select" id="public-stats-${video.id}" onchange="app.handlePublicStatsChange('${video.id}')">
+                    ${generateBooleanOptions(video.public_stats_viewable)}
+                  </select>
+                </div>
+                <div class="language-control">
+                  <label for="made-for-kids-${video.id}" data-i18n="video.madeForKids">Made for kids</label>
+                  <select class="language-select" id="made-for-kids-${video.id}" onchange="app.handleMadeForKidsChange('${video.id}')">
+                    ${generateBooleanOptions(video.made_for_kids)}
                   </select>
                 </div>
                 <div class="recording-date-control">

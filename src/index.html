@@ -711,9 +711,10 @@
       margin-left: 6px;
     }
 
-    /* Read-only "Made for kids" indicator (B15). Display-only by design: the
-       app never writes selfDeclaredMadeForKids (see src/youtube-api.ts), so
-       this badge has no editable control. Theme-aware via CSS variables. */
+    /* "Made for kids" indicator (B15): shows the saved *effective*
+       designation. The editable control is the card's made-for-kids select,
+       which writes selfDeclaredMadeForKids only when changed (see
+       src/video-form.ts). Theme-aware via CSS variables. */
     .made-for-kids-badge,
     .scheduled-badge {
       background: var(--bg-tertiary);

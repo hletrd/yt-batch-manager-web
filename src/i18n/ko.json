@@ -94,7 +94,9 @@
     "useCurrentLocation": "현재 위치 사용",
     "viewOnMap": "지도에서 보기",
     "replaceThumbnail": "썸네일 교체",
-    "scheduled": "예약 공개 {date}"
+    "scheduled": "예약 공개 {date}",
+    "embeddable": "퍼가기 허용",
+    "publicStatsViewable": "통계 공개"
   },
   "license": {
     "standard": "표준 YouTube 라이선스",
@@ -173,5 +175,10 @@
   },
   "tooltips": {
     "authRequired": "인증이 필요합니다"
+  },
+  "choice": {
+    "yes": "예",
+    "no": "아니요",
+    "keep": "현재 값 유지"
   }
 }

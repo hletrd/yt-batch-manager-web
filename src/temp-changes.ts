@@ -25,6 +25,10 @@ interface TemporaryFormData {
   license?: string;
   default_language?: string;
   contains_synthetic_media?: boolean;
+  // Raw Yes/No select values ('true' | 'false' | '' for "keep current").
+  embeddable?: string;
+  public_stats_viewable?: string;
+  made_for_kids?: string;
 }
 
 interface TemporaryChangesData {
@@ -53,6 +57,9 @@ export function saveTemporaryChanges(changedVideos: Set<string>, getCurrentTags:
       const licenseEl = document.getElementById(`license-${videoId}`) as HTMLSelectElement | null;
       const defaultLangEl = document.getElementById(`default-language-${videoId}`) as HTMLSelectElement | null;
       const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement | null;
+      const embeddableEl = document.getElementById(`embeddable-${videoId}`) as HTMLSelectElement | null;
+      const publicStatsEl = document.getElementById(`public-stats-${videoId}`) as HTMLSelectElement | null;
+      const madeForKidsEl = document.getElementById(`made-for-kids-${videoId}`) as HTMLSelectElement | null;
       const currentTags = getCurrentTags(videoId);
 
       if (titleEl || descriptionEl || privacyEl || categoryEl || languageEl || currentTags.length > 0) {
@@ -72,7 +79,10 @@ export function saveTemporaryChanges(changedVideos: Set<string>, getCurrentTags:
           ...(lngEl ? { longitude: lngEl.value } : {}),
           ...(licenseEl ? { license: licenseEl.value } : {}),
           ...(defaultLangEl ? { default_language: defaultLangEl.value } : {}),
-          ...(syntheticEl ? { contains_synthetic_media: syntheticEl.checked } : {})
+          ...(syntheticEl ? { contains_synthetic_media: syntheticEl.checked } : {}),
+          ...(embeddableEl ? { embeddable: embeddableEl.value } : {}),
+          ...(publicStatsEl ? { public_stats_viewable: publicStatsEl.value } : {}),
+          ...(madeForKidsEl ? { made_for_kids: madeForKidsEl.value } : {})
         };
       }
     });
@@ -117,6 +127,9 @@ export interface TempChangesRestoreDeps {
   handleLicenseChange(videoId: string): void;
   handleDefaultLanguageChange(videoId: string): void;
   handleSyntheticMediaChange(videoId: string): void;
+  handleEmbeddableChange(videoId: string): void;
+  handlePublicStatsChange(videoId: string): void;
+  handleMadeForKidsChange(videoId: string): void;
   autoResizeTextarea(textarea: HTMLTextAreaElement): void;
   renderTagsContainer(videoId: string): void;
   updateTagsCounter(videoId: string): void;
@@ -221,6 +234,20 @@ export function restoreTemporaryChanges(deps: TempChangesRestoreDeps): number {
         if (syntheticEl && syntheticEl.checked !== restored) {
           syntheticEl.checked = restored;
           deps.handleSyntheticMediaChange(videoId);
+        }
+      }
+
+      const booleanSelects: Array<[keyof TemporaryFormData, string, (videoId: string) => void]> = [
+        ['embeddable', `embeddable-${videoId}`, deps.handleEmbeddableChange],
+        ['public_stats_viewable', `public-stats-${videoId}`, deps.handlePublicStatsChange],
+        ['made_for_kids', `made-for-kids-${videoId}`, deps.handleMadeForKidsChange]
+      ];
+      for (const [key, elementId, onChange] of booleanSelects) {
+        const restored = formData[key];
+        const select = document.getElementById(elementId) as HTMLSelectElement | null;
+        if (typeof restored === 'string' && select && select.value !== restored) {
+          select.value = restored;
+          onChange(videoId);
         }
       }
 

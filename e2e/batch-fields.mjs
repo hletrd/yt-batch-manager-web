@@ -120,6 +120,29 @@ const exportJson = async () => {
   return JSON.parse(readFileSync(await download.path(), 'utf8'));
 };
 
+const importFile = async (name, mimeType, buffer) => {
+  await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.evaluate(() => window.app.loadFromFile())
+  ]);
+  await chooser.setFiles({ name, mimeType, buffer });
+  await page.waitForFunction(() => /Imported|Invalid|Failed|No videos/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+};
+
+const importJson = (records) => importFile('videos.json', 'application/json', Buffer.from(JSON.stringify(records)));
+
+const changedIds = () => page.evaluate(() => [...document.querySelectorAll('.video-item.changed')].map(e => e.dataset.videoId).sort());
+
+// Click "Save all" and return the PUTs it produced.
+const saveAll = async () => {
+  const before = puts.length;
+  await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
+  await page.click('#save-all-btn');
+  await page.waitForFunction(() => /Batch save/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+  return puts.slice(before);
+};
+
 // ---- Load: the stale pre-v2 cache is discarded, videos come from YouTube ----
 await page.goto(APP, { waitUntil: 'load' });
 await page.locator(`#video-${VID_S}`).waitFor({ state: 'visible', timeout: 20000 });
@@ -144,6 +167,34 @@ ok('S4. leaving private drops publishAt', putS2 && !('publishAt' in (putS2.body.
 await page.selectOption(`#privacy-${VID_S}`, 'private');
 const putS3 = await saveCard(VID_S);
 ok('S5. back to private does not resurrect the old schedule', putS3 && !('publishAt' in (putS3.body.status || {})), JSON.stringify(putS3?.body.status));
+
+// ---- Embedding / public stats / made for kids ----
+ok('F1. status selects reflect YouTube values',
+  await page.locator(`#embeddable-${VID_P}`).inputValue() === 'true' &&
+  await page.locator(`#public-stats-${VID_P}`).inputValue() === 'true' &&
+  await page.locator(`#made-for-kids-${VID_P}`).inputValue() === 'false');
+
+await page.selectOption(`#embeddable-${VID_P}`, 'false');
+const putF2 = await saveCard(VID_P);
+ok('F2. embedding change is saved', putF2?.body.status?.embeddable === false && putF2.body.status.publicStatsViewable === true, JSON.stringify(putF2?.body.status));
+ok('F2b. made-for-kids untouched -> selfDeclaredMadeForKids not sent', putF2 && !('selfDeclaredMadeForKids' in putF2.body.status), JSON.stringify(putF2?.body.status));
+
+await page.selectOption(`#made-for-kids-${VID_P}`, 'true');
+const putF3 = await saveCard(VID_P);
+ok('F3. made-for-kids change writes selfDeclaredMadeForKids', putF3?.body.status?.selfDeclaredMadeForKids === true && putF3.body.status.embeddable === false, JSON.stringify(putF3?.body.status));
+
+// JSON round trip with a YouTube baseline: only the edited video is marked.
+const json2 = await exportJson();
+ok('F4. export reflects saved values', json2.find(v => v.id === VID_P)?.embeddable === false && json2.find(v => v.id === VID_P)?.made_for_kids === true);
+json2.find(v => v.id === VID_P).public_stats_viewable = false;
+json2.find(v => v.id === VID_P).made_for_kids = false;
+await importJson(json2);
+ok('F5. JSON-only status edit marks the video changed', JSON.stringify(await changedIds()) === JSON.stringify([VID_P]), JSON.stringify(await changedIds()));
+ok('F5b. imported values shown in the card', await page.locator(`#public-stats-${VID_P}`).inputValue() === 'false' && await page.locator(`#made-for-kids-${VID_P}`).inputValue() === 'false');
+const putsF6 = await saveAll();
+const putF6 = putsF6[0];
+ok('F6. save all sends one PUT', putsF6.length === 1, JSON.stringify(putsF6.map(p => p.body.id)));
+ok('F6b. JSON status edits are written', putF6?.body.id === VID_P && putF6.body.status.publicStatsViewable === false && putF6.body.status.selfDeclaredMadeForKids === false && putF6.body.status.embeddable === false, JSON.stringify(putF6?.body.status));
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 
