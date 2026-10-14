@@ -714,7 +714,8 @@
     /* Read-only "Made for kids" indicator (B15). Display-only by design: the
        app never writes selfDeclaredMadeForKids (see src/youtube-api.ts), so
        this badge has no editable control. Theme-aware via CSS variables. */
-    .made-for-kids-badge {
+    .made-for-kids-badge,
+    .scheduled-badge {
       background: var(--bg-tertiary);
       color: var(--text-primary);
       border-radius: 4px;

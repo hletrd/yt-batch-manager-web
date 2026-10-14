@@ -93,7 +93,8 @@
     "longitude": "경도",
     "useCurrentLocation": "현재 위치 사용",
     "viewOnMap": "지도에서 보기",
-    "replaceThumbnail": "썸네일 교체"
+    "replaceThumbnail": "썸네일 교체",
+    "scheduled": "예약 공개 {date}"
   },
   "license": {
     "standard": "표준 YouTube 라이선스",

@@ -93,7 +93,8 @@
     "longitude": "Longitude",
     "useCurrentLocation": "Use current location",
     "viewOnMap": "View on map",
-    "replaceThumbnail": "Replace thumbnail"
+    "replaceThumbnail": "Replace thumbnail",
+    "scheduled": "Scheduled {date}"
   },
   "license": {
     "standard": "Standard YouTube License",

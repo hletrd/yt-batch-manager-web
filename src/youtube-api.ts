@@ -1,4 +1,5 @@
 import type { VideoData, ThumbnailData } from './types.js';
+import { normalizeTimestamp } from './utils/format.js';
 
 interface YouTubeAPIConfig {
   clientId?: string;
@@ -55,6 +56,7 @@ interface VideoListItem {
   };
   status?: {
     privacyStatus?: string;
+    publishAt?: string;
     containsSyntheticMedia?: boolean;
     madeForKids?: boolean;
     license?: string;
@@ -150,6 +152,7 @@ interface VideoUpdateRequestBody {
   };
   status: {
     privacyStatus?: string;
+    publishAt?: string;
     containsSyntheticMedia?: boolean;
     license?: string;
     embeddable?: boolean;
@@ -808,6 +811,7 @@ export class YouTubeAPI {
           thumbnails,
           published_at: item.snippet.publishedAt || '',
           privacy_status: item.status?.privacyStatus || 'private',
+          publish_at: normalizeTimestamp(item.status?.publishAt),
           category_id: item.snippet.categoryId || '22',
           tags: item.snippet.tags || [],
           defaultAudioLanguage: item.snippet.defaultAudioLanguage,
@@ -942,7 +946,7 @@ export class YouTubeAPI {
    * omitted property. Returns null on failure so the caller can proceed without
    * blocking the save.
    */
-  async getVideoStatus(videoId: string): Promise<Pick<VideoData, 'license' | 'embeddable' | 'public_stats_viewable' | 'contains_synthetic_media' | 'made_for_kids'> | null> {
+  async getVideoStatus(videoId: string): Promise<Pick<VideoData, 'license' | 'embeddable' | 'public_stats_viewable' | 'contains_synthetic_media' | 'made_for_kids' | 'publish_at'> | null> {
     if (!this.isAuthenticated || !this.accessToken) {
       return null;
     }
@@ -970,7 +974,8 @@ export class YouTubeAPI {
         embeddable: status.embeddable,
         public_stats_viewable: status.publicStatsViewable,
         contains_synthetic_media: status.containsSyntheticMedia,
-        made_for_kids: status.madeForKids
+        made_for_kids: status.madeForKids,
+        publish_at: normalizeTimestamp(status.publishAt)
       };
     } catch {
       return null;
@@ -1019,6 +1024,14 @@ export class YouTubeAPI {
       }
       if (updates.privacy_status !== undefined) {
         requestBody.status.privacyStatus = updates.privacy_status;
+      }
+      // A scheduled publish time must be round-tripped like the other status
+      // fields, or every save of a scheduled video would cancel its schedule.
+      // YouTube accepts publishAt only on a private video, so it is dropped when
+      // the video is being made public/unlisted — which is also how a schedule
+      // is meant to end.
+      if (updates.publish_at && updates.privacy_status === 'private') {
+        requestBody.status.publishAt = updates.publish_at;
       }
       // Always round-trip the remaining mutable status fields. videos.update
       // deletes any status property omitted from the request, so leaving these

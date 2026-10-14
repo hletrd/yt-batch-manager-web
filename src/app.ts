@@ -53,6 +53,10 @@ class YouTubeBatchManager {
   // statistics/thumbnails/duration/upload_status), so cache persistence is
   // limited to YouTube-sourced sets (C2).
   private videosSource: 'youtube' | 'import' = 'youtube';
+  // Imported videos with no YouTube-loaded baseline: their status fields come
+  // only from the file (older backups lack some, e.g. publish_at), so the live
+  // status is fetched once before their first save. See updateVideo.
+  private unverifiedStatusIds: Set<string> = new Set();
   private videoCategories: Record<string, { id: string; title: string }> = {};
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
   private isOAuthRedirecting = false;
@@ -318,6 +322,7 @@ class YouTubeBatchManager {
 
       this.state.allVideos = videos;
       this.videosSource = 'youtube';
+      this.unverifiedStatusIds.clear();
       this.rebuildVideoIndex();
       this.state.displayedVideos = [...videos];
       this.state.changedVideos.clear();
@@ -843,6 +848,7 @@ class YouTubeBatchManager {
 
     this.state.allVideos = videoData;
     this.videosSource = 'import';
+    this.unverifiedStatusIds.clear();
     this.rebuildVideoIndex();
     this.state.displayedVideos = [...videoData];
     this.state.changedVideos.clear();
@@ -859,6 +865,7 @@ class YouTubeBatchManager {
         // Deep snapshot (see loadVideos): keep the baseline independent of the
         // live record's nested objects (B12).
         this.originalVideosState.set(video.id, structuredClone(video));
+        this.unverifiedStatusIds.add(video.id);
       }
     });
 
@@ -878,6 +885,7 @@ class YouTubeBatchManager {
     this.state.displayedVideos = [];
     this.state.changedVideos.clear();
     this.originalVideosState.clear();
+    this.unverifiedStatusIds.clear();
     this.clearVideoCache();
     this.clearTemporaryChanges();
   }
@@ -927,6 +935,7 @@ class YouTubeBatchManager {
       this.state.displayedVideos = [];
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
+      this.unverifiedStatusIds.clear();
       this.clearVideoCache();
 
       const container = document.getElementById('video-list');
@@ -1139,21 +1148,7 @@ class YouTubeBatchManager {
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
-    const hasChanges = hasCurrentChanges(
-      videoId,
-      original.title,
-      original.description,
-      original.privacy_status,
-      original.category_id,
-      original.defaultAudioLanguage,
-      original.contains_synthetic_media,
-      original.recording_date,
-      original.latitude,
-      original.longitude,
-      original.license,
-      original.default_language,
-      this.getOriginalTags(videoId)
-    );
+    const hasChanges = hasCurrentChanges(videoId, video, original);
 
     if (hasChanges) {
       this.markChanged(videoId);
@@ -1168,16 +1163,12 @@ class YouTubeBatchManager {
     }
   }
 
-  private getOriginalTags(videoId: string): string[] {
-    const original = this.originalVideosState.get(videoId);
-    return original?.tags || [];
-  }
-
   private videoDiffersFromBaseline(video: VideoData, baseline: VideoData): boolean {
     return (
       (video.title || '') !== (baseline.title || '') ||
       (video.description || '') !== (baseline.description || '') ||
       (video.privacy_status || '') !== (baseline.privacy_status || '') ||
+      (video.publish_at ?? null) !== (baseline.publish_at ?? null) ||
       (video.category_id || '') !== (baseline.category_id || '') ||
       (video.defaultAudioLanguage || '') !== (baseline.defaultAudioLanguage || '') ||
       (video.contains_synthetic_media || false) !== (baseline.contains_synthetic_media || false) ||
@@ -1248,20 +1239,25 @@ class YouTubeBatchManager {
 
     try {
       // videos.update replaces the whole `status` part, deleting any omitted
-      // property. For a video imported from a backup, license/embeddable/
-      // public_stats_viewable are unknown locally (the backup export strips them),
-      // so re-sending them as undefined would wipe them on YouTube. When all three
-      // are missing, backfill the live status from YouTube before building the
-      // request so the save preserves the creator's existing settings.
-      if (video.license === undefined && video.embeddable === undefined && video.public_stats_viewable === undefined) {
+      // property. For a video imported from a file with no YouTube-loaded
+      // baseline, status fields the file left unset (older backups lack
+      // license/embeddable/public_stats_viewable/publish_at) are unknown
+      // locally, so re-sending them as undefined would wipe them on YouTube —
+      // including cancelling a scheduled publish. Backfill those from the live
+      // status before building the request, into the baseline as well so the
+      // backfilled values do not register as user edits.
+      if (this.unverifiedStatusIds.has(videoId) || (video.license === undefined && video.embeddable === undefined && video.public_stats_viewable === undefined)) {
         const liveStatus = await this.youtubeAPI.getVideoStatus(videoId);
         if (liveStatus) {
-          video.license = liveStatus.license;
-          video.embeddable = liveStatus.embeddable;
-          video.public_stats_viewable = liveStatus.public_stats_viewable;
-          if (video.made_for_kids === undefined) {
-            video.made_for_kids = liveStatus.made_for_kids;
+          const baseline = this.originalVideosState.get(videoId);
+          for (const target of baseline ? [video, baseline] : [video]) {
+            target.license ??= liveStatus.license;
+            target.embeddable ??= liveStatus.embeddable;
+            target.public_stats_viewable ??= liveStatus.public_stats_viewable;
+            target.made_for_kids ??= liveStatus.made_for_kids;
+            target.publish_at ??= liveStatus.publish_at;
           }
+          this.unverifiedStatusIds.delete(videoId);
         }
       }
 

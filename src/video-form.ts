@@ -7,7 +7,10 @@ import type { VideoData } from './types.js';
 import { arraysEqual, parseCoordInput } from './utils/format.js';
 import { getCurrentTags } from './tags.js';
 
-export function hasCurrentChanges(videoId: string, savedTitle: string, savedDescription: string, savedPrivacyStatus: string, savedCategoryId: string, savedDefaultAudioLanguage?: string, savedContainsSyntheticMedia?: boolean, savedRecordingDate?: string, savedLatitude?: number, savedLongitude?: number, savedLicense?: string, savedDefaultLanguage?: string, originalTags: string[] = []): boolean {
+// `video` is the live record (it carries the fields that have no form control
+// and can only change through a backup import); `original` is the saved
+// baseline.
+export function hasCurrentChanges(videoId: string, video: VideoData, original: VideoData): boolean {
   const titleEl = document.getElementById(`title-${videoId}`) as HTMLInputElement;
   const descriptionEl = document.getElementById(`description-${videoId}`) as HTMLTextAreaElement;
   const privacyEl = document.getElementById(`privacy-${videoId}`) as HTMLSelectElement;
@@ -23,18 +26,19 @@ export function hasCurrentChanges(videoId: string, savedTitle: string, savedDesc
   const currentTags = getCurrentTags(videoId);
 
   return (
-    titleEl?.value !== savedTitle ||
-    descriptionEl?.value !== savedDescription ||
-    privacyEl?.value !== savedPrivacyStatus ||
-    categoryEl?.value !== savedCategoryId ||
-    languageEl?.value !== (savedDefaultAudioLanguage || '') ||
-    (syntheticEl ? syntheticEl.checked : false) !== (savedContainsSyntheticMedia || false) ||
-    (recordingDateEl ? recordingDateEl.value : '') !== (savedRecordingDate || '') ||
-    (latEl ? latEl.value.trim() : '') !== (savedLatitude != null ? String(savedLatitude) : '') ||
-    (lngEl ? lngEl.value.trim() : '') !== (savedLongitude != null ? String(savedLongitude) : '') ||
-    (licenseEl ? licenseEl.value : (savedLicense || 'youtube')) !== (savedLicense || 'youtube') ||
-    (defaultLangEl ? defaultLangEl.value : '') !== (savedDefaultLanguage || '') ||
-    !arraysEqual(currentTags, originalTags)
+    titleEl?.value !== original.title ||
+    descriptionEl?.value !== original.description ||
+    privacyEl?.value !== original.privacy_status ||
+    categoryEl?.value !== original.category_id ||
+    languageEl?.value !== (original.defaultAudioLanguage || '') ||
+    (syntheticEl ? syntheticEl.checked : false) !== (original.contains_synthetic_media || false) ||
+    (recordingDateEl ? recordingDateEl.value : '') !== (original.recording_date || '') ||
+    (latEl ? latEl.value.trim() : '') !== (original.latitude != null ? String(original.latitude) : '') ||
+    (lngEl ? lngEl.value.trim() : '') !== (original.longitude != null ? String(original.longitude) : '') ||
+    (licenseEl ? licenseEl.value : (original.license || 'youtube')) !== (original.license || 'youtube') ||
+    (defaultLangEl ? defaultLangEl.value : '') !== (original.default_language || '') ||
+    (video.publish_at ?? null) !== (original.publish_at ?? null) ||
+    !arraysEqual(currentTags, original.tags || [])
   );
 }
 
@@ -42,6 +46,7 @@ export interface CollectedVideoUpdates {
   title: string;
   description: string;
   privacy_status: string;
+  publish_at?: string;
   category_id: string;
   defaultAudioLanguage: string;
   default_language: string;
@@ -63,6 +68,7 @@ export function collectVideoUpdates(videoId: string, video: VideoData, recording
   const languageEl = document.getElementById(`language-${videoId}`) as HTMLSelectElement;
 
   const syntheticEl = document.getElementById(`synthetic-${videoId}`) as HTMLInputElement;
+  const privacyStatus = privacyEl ? privacyEl.value : video.privacy_status;
 
   // Read the live element value when the element exists, falling back to the
   // stored value only when the element is missing. Using `el?.value || stored`
@@ -86,7 +92,12 @@ export function collectVideoUpdates(videoId: string, video: VideoData, recording
   const updates: CollectedVideoUpdates = {
     title: titleEl ? titleEl.value : video.title,
     description: descriptionEl ? descriptionEl.value : video.description,
-    privacy_status: privacyEl ? privacyEl.value : video.privacy_status,
+    privacy_status: privacyStatus,
+    // No form control; set from YouTube or a backup import. YouTube keeps a
+    // schedule only on a private video, so it is dropped (and forgotten after
+    // the save) once the video is made public/unlisted — otherwise switching
+    // it back to private later would silently re-schedule it.
+    publish_at: privacyStatus === 'private' ? video.publish_at : undefined,
     category_id: categoryEl ? categoryEl.value : video.category_id,
     // Empty string is the "Auto" option and must be allowed to clear a set language.
     defaultAudioLanguage: languageEl ? languageEl.value : (video.defaultAudioLanguage || ''),

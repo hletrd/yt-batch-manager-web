@@ -9,9 +9,14 @@ export interface VideoCacheData {
   videos: VideoData[];
   timestamp: number;
   channelId?: string;
+  version?: number;
 }
 
 const CACHE_EXPIRY_HOURS = 24;
+// Bump when VideoData gains a field whose absence in an older cache would be
+// misread. v2: publish_at — a pre-v2 cache has none, which would look like
+// "not scheduled" and cancel the schedule on the next save.
+const CACHE_VERSION = 2;
 const VIDEO_CACHE_KEY = 'yt_video_cache';
 
 // Returns true when the cache write succeeded, so the caller can keep its
@@ -21,7 +26,8 @@ export function saveVideosToCache(videos: VideoData[], channelId?: string): bool
     const cacheData: VideoCacheData = {
       videos,
       timestamp: Date.now(),
-      channelId
+      channelId,
+      version: CACHE_VERSION
     };
     localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(cacheData));
     console.log('Videos cached to localStorage:', videos.length);
@@ -44,6 +50,12 @@ export function loadVideosFromCache(): { videos: VideoData[]; channelId?: string
 
     if (cacheAge > maxAge) {
       console.log('Cache expired, will load fresh data');
+      localStorage.removeItem(VIDEO_CACHE_KEY);
+      return null;
+    }
+
+    if (cacheData.version !== CACHE_VERSION) {
+      console.log('Cache was written by an older version; discarding and loading fresh');
       localStorage.removeItem(VIDEO_CACHE_KEY);
       return null;
     }

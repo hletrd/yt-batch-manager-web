@@ -16,6 +16,9 @@ export interface VideoData {
   thumbnails: Record<string, ThumbnailData>;
   published_at: string;
   privacy_status: string;
+  // status.publishAt: scheduled publish time (ISO 8601, toISOString form) of a
+  // private video. Must be round-tripped on save or videos.update cancels it.
+  publish_at?: string;
   category_id: string;
   tags?: string[];
   defaultAudioLanguage?: string;

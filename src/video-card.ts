@@ -7,7 +7,7 @@
 
 import rendererI18n from './i18n/renderer-i18n.js';
 import type { VideoData } from './types.js';
-import { formatDuration, formatNumber, isLikelyShort } from './utils/format.js';
+import { formatDateTime, formatDuration, formatNumber, isLikelyShort } from './utils/format.js';
 import { escapeHtml, escapeHtmlAttribute } from './utils/html.js';
 
 // 16:9 transparent placeholder (muted play glyph). Transparent so the themed
@@ -109,6 +109,7 @@ export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContex
                 ${video.duration ? `<span class="video-duration">${formatDuration(video.duration)}</span>` : ''}
                 ${isLikelyShort(video) ? `<span class="short-badge" data-i18n="video.shortBadge">Short</span>` : ''}
                 ${video.made_for_kids === true ? `<span class="made-for-kids-badge" data-i18n="video.madeForKids">Made for kids</span>` : ''}
+                ${video.publish_at && video.privacy_status === 'private' ? `<span class="scheduled-badge" title="${escapeHtmlAttribute(video.publish_at)}">${escapeHtml(rendererI18n.t('video.scheduled', { date: formatDateTime(video.publish_at, rendererI18n.getCurrentLanguage()) }))}</span>` : ''}
               </div>
               <div class="video-metadata">
                 <div class="privacy-control">

@@ -133,9 +133,11 @@ reload, quota-403 messaging, and logout.
 npm run build
 npx http-server dist -p 8753 -c-1 &     # serve the build
 npx http-server dist -p 8754 -c-1 &     # second port for the focused regression test
+npx http-server dist -p 8755 -c-1 &     # third port for the batch-fields suite
 cd e2e && npm init -y && npm i playwright
 node e2e.mjs                 # full flow suite (port 8753)
 node regression-language.mjs # focused: empty language codes are omitted (port 8754)
+node batch-fields.mjs        # focused: JSON/ZIP batch edits and status round-trips (port 8755)
 ```
 
 #### Source layout

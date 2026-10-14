@@ -4,6 +4,7 @@
 
 import type { VideoData } from './types.js';
 import { sanitizeImageUrl, sanitizeThumbnailMap } from './utils/html.js';
+import { normalizeTimestamp } from './utils/format.js';
 
 export function filterVideoDataForBackup(videos: VideoData[]): Record<string, unknown>[] {
   // Emit every editable field for each video. Unset optional fields are written
@@ -17,6 +18,7 @@ export function filterVideoDataForBackup(videos: VideoData[]): Record<string, un
     description: video.description,
     published_at: video.published_at,
     privacy_status: video.privacy_status,
+    publish_at: video.publish_at ?? null,
     category_id: video.category_id,
     tags: video.tags ?? [],
     defaultAudioLanguage: video.defaultAudioLanguage ?? null,
@@ -59,6 +61,7 @@ export function sanitizeImportedVideos(videoData: VideoData[]): VideoData[] {
     title: typeof video.title === 'string' ? video.title : String(video.title ?? ''),
     description: typeof video.description === 'string' ? video.description : String(video.description ?? ''),
     privacy_status: allowedPrivacy.has(video.privacy_status) ? video.privacy_status : 'private',
+    publish_at: normalizeTimestamp(video.publish_at),
     category_id: video.category_id != null ? String(video.category_id) : '22',
     tags: Array.isArray(video.tags) ? video.tags.filter((t): t is string => typeof t === 'string') : [],
     defaultAudioLanguage: typeof video.defaultAudioLanguage === 'string' ? video.defaultAudioLanguage : undefined,

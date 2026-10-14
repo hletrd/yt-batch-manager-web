@@ -77,6 +77,22 @@ export function publishedTime(value: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+// Canonical ISO-8601 UTC form (toISOString) of a timestamp, or undefined when
+// it is missing/unparseable, so a value from the API and one from a
+// hand-edited backup compare equal regardless of formatting ("...Z" vs
+// "....000Z", or an explicit offset).
+export function normalizeTimestamp(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : new Date(time).toISOString();
+}
+
+// Localized date + time for an ISO timestamp (e.g. a scheduled publish time).
+export function formatDateTime(iso: string, locale: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
 export function parseCoordInput(raw: string | undefined, fallback: number | undefined): number | undefined {
   if (raw === undefined) return fallback;
   const trimmed = raw.trim();
