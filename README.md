@@ -35,27 +35,74 @@ This is a web port of an [Electron port, as a standalone app](https://github.com
 * Set the recording date and recording location (latitude/longitude) per video, with a use-current-location button and a view-on-map link.
 * Change the license (Standard YouTube License / Creative Commons) and the title/description language.
 * Toggle the "altered or synthetic content" (AI) disclosure per video.
+* Set whether a video can be embedded, whether its stats are public, and whether it is made for kids.
+* Replace a video's custom thumbnail, or batch-replace many at once through a ZIP backup (see below).
+* A scheduled video's publish time is kept when you edit it, and shown as a badge.
 * Copy a video's tags to the clipboard with one click.
 * Likely YouTube Shorts (vertical/square and 3 minutes or shorter) are flagged with a badge.
 * Loads every video in the channel, not just the most recent ones.
-* Save/load video data to/from local JSON files for offline editing and backup. Exports include every editable field (unset values as `null`) so the file doubles as a fill-in template; imported backups are validated and sanitized before anything is rendered or saved.
+* Save/load video data to/from local JSON files for offline editing and backup. Exports include every editable field (unset values as `null`) so the file doubles as a fill-in template; imported backups are validated and sanitized before anything is rendered or saved. A file may also list only the fields you want to change.
+* Save/load a ZIP backup that also contains every video's thumbnail, to batch-replace thumbnails.
 * Stays signed in across reloads — the session is restored automatically, so you don't have to log in again every hour.
 
 ## 기능 (한국어)
 
 * 유튜브 채널의 영상 하나하나를 각각 열지 않아도 한 번에 영상 제목과 설명을 편집할 수 있습니다.
   * 이거 유튜브 Studio 웹페이지나 YT Studio 앱에서는 안 됩니다. 대체 왜 안 되는지 모르겠습니다.
-* 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다. 내보낸 JSON에는 모든 편집 가능 항목이 포함되며(미설정 값은 `null`), 불러온 백업은 렌더링·저장 전에 검증/정제됩니다.
+* 영상 제목과 설명을 JSON으로 저장하고 불러올 수 있습니다. 내보낸 JSON에는 모든 편집 가능 항목이 포함되며(미설정 값은 `null`), 불러온 백업은 렌더링·저장 전에 검증/정제됩니다. 바꿀 항목만 적은 JSON도 불러올 수 있습니다.
+* 썸네일까지 담은 ZIP으로 저장하고 불러올 수 있어, 여러 영상의 썸네일을 한 번에 바꿀 수 있습니다.
 * 영상 공개 설정 / 카테고리 / 언어 / 태그 등도 한 번에 편집할 수 있습니다.
 * 영상별 촬영일과 촬영 장소(위도/경도)를 설정할 수 있습니다. 현재 위치 버튼과 지도에서 보기 링크도 제공됩니다.
 * 라이선스(표준 YouTube / 크리에이티브 커먼즈)와 제목·설명 언어를 변경할 수 있습니다.
 * 영상별로 '변경되거나 합성된 콘텐츠(AI)' 공개 여부를 설정할 수 있습니다.
+* 퍼가기 허용, 통계 공개, 아동용 여부를 설정할 수 있습니다.
+* 예약 공개 영상을 수정해도 예약 시각이 유지되며, 배지로 표시됩니다.
 * 버튼 한 번으로 영상의 태그를 클립보드에 복사할 수 있습니다.
 * 쇼츠로 추정되는 영상(세로/정사각형이면서 3분 이하)에는 배지가 표시됩니다.
 * 최근 영상만이 아니라 채널의 모든 영상을 불러옵니다.
 * 새로고침하거나 다시 접속해도 로그인이 유지되어, 한 시간마다 다시 로그인할 필요가 없습니다.
 
 ---
+
+## Batch editing with JSON / ZIP
+
+**Functions → Save as JSON** writes one record per video. Edit the file, load it
+back with **Functions → Load from file**, review the highlighted cards, and press
+**Save All**. Only videos that differ from what is on YouTube are marked.
+
+| Field | Notes |
+| --- | --- |
+| `id` | Video id. Required; records with an invalid id are ignored. |
+| `title`, `description`, `tags` | `tags` is an array, or a comma-separated string. |
+| `privacy_status` | `private`, `unlisted` or `public`. |
+| `publish_at` | Scheduled publish time (ISO 8601), private videos only; `null` cancels the schedule. |
+| `category_id`, `defaultAudioLanguage`, `default_language` | Category id and BCP-47 language codes. A language cannot be unset once set (a YouTube limitation). |
+| `license` | `youtube` or `creativeCommon`. |
+| `embeddable`, `public_stats_viewable`, `made_for_kids`, `contains_synthetic_media` | `true` / `false`. `made_for_kids` is written as your self-declaration, only when you change it; YouTube can still override it. |
+| `recording_date`, `latitude`, `longitude` | `YYYY-MM-DD` and decimal degrees; `null` clears them. |
+| `published_at` | Read-only (YouTube does not allow changing it). |
+
+A record does not need every field: anything you leave out (or set to an invalid
+value) keeps the current YouTube value, so `[{"id": "…", "title": "New title"}]`
+changes just that title. Load your videos from YouTube first so the app knows
+the current values.
+
+**Thumbnails: Functions → Save as ZIP (with thumbnails)** exports the same JSON
+as `videos.json` plus `thumbnails/<video id>.jpg|png` (the current thumbnail, at
+most 1280×720) and a short `README.txt`. To replace thumbnails, overwrite images
+in `thumbnails/` with new JPEG or PNG files (up to 50 MB; keep the video id as
+the file name), re-zip, and load the ZIP. Each image is compared with the
+`thumbnail_sha256` recorded at export time, so only images you actually
+replaced are uploaded. They show up as *New thumbnail · unsaved* (with a button
+to discard) and are uploaded when you save. A video whose only change is the
+thumbnail skips the metadata update. Notes:
+
+* Custom thumbnails require a [verified channel](https://www.youtube.com/verify);
+  otherwise the upload fails with `403`.
+* Each thumbnail upload costs about 50 units of the 10,000-unit daily quota, and
+  YouTube limits how many thumbnails a channel can upload per day
+  (`uploadRateLimitExceeded`).
+* Pending thumbnails are kept in memory only: save them before reloading.
 
 ## Guide for developers
 
@@ -127,7 +174,9 @@ as-is. Pushing to `master` auto-deploys to GitHub Pages via
 Google/YouTube backend, so **no real credentials or quota are needed**. They
 cover the OAuth + PKCE handshake, token exchange, the video-load chain,
 rendering, the `videos.update` request bodies, 401 silent-refresh-retry, cache
-reload, quota-403 messaging, and logout.
+reload, quota-403 messaging, logout, and (in `batch-fields.mjs`) JSON/ZIP batch
+edits, thumbnail uploads and the status fields that must be round-tripped. The
+ZIP tests shell out to `zip`/`unzip`.
 
 ```bash
 npm run build
@@ -156,9 +205,11 @@ the rendered inline handlers call):
 | `temp-changes.ts` | Persist/restore unsaved edits across the OAuth redirect |
 | `video-cache.ts` | `localStorage` video cache (save/load/validate/clear) |
 | `backup.ts` | JSON export field filter + import validation/sanitization |
+| `backup-zip.ts` | ZIP backup: thumbnails export, changed-thumbnail detection on import |
 | `header-ui.ts`, `global-events.ts`, `ui-feedback.ts`, `theme.ts` | Header/menu, delegated events, toasts/overlays, theme toggle |
 | `textarea-resize.ts`, `fallback-data.ts` | rAF-throttled auto-resize; offline category/language fallbacks |
 | `utils/format.ts`, `utils/html.ts` | Duration/number formatting & Shorts heuristic; HTML/attribute escaping |
+| `utils/zip.ts` | Dependency-free ZIP reader/writer (STORE/DEFLATE via `CompressionStream`) |
 | `i18n/` | English/Korean strings and the runtime renderer |
 
 See [`AGENTS.md`](./AGENTS.md) for the architecture notes and the YouTube Data
@@ -175,6 +226,11 @@ for the list of notable changes.
 
 ### "403 Forbidden" / quota exceeded when loading videos
 The YouTube Data API has a default quota of 10,000 units/day. The app lists your uploads efficiently (about 9 units per full load), so this is rarely hit. If you do see a `403 quotaExceeded`, the daily quota resets at midnight Pacific Time, or you can request a higher quota in the Google Cloud Console.
+
+### Thumbnail upload fails with "403 Forbidden"
+Custom thumbnails are only available to [verified channels](https://www.youtube.com/verify).
+If you upload many thumbnails in a day, YouTube may also answer
+`uploadRateLimitExceeded`; try again later.
 
 ### Recording date or location doesn't appear in YouTube Studio
 YouTube has **deprecated the recording-location latitude/longitude** fields:

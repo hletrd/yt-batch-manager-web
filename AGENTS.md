@@ -34,9 +34,22 @@ State that persists in `localStorage`:
 | --- | --- |
 | `youtube_access_token` / `youtube_token_expiry` / `youtube_refresh_token` | OAuth session |
 | `oauth_code_verifier` / `oauth_state` | PKCE handshake (transient) |
-| `yt_video_cache` | Last loaded video set (24h TTL) |
+| `yt_video_cache` | Last loaded video set (24h TTL; versioned — bump `CACHE_VERSION` in `video-cache.ts` when a missing field would be misread) |
 | `yt_temp_form_changes` | Unsaved edits stashed across the OAuth redirect |
 | `theme` | Light/dark preference |
+
+Pending (unsaved) thumbnails from a ZIP import live only in memory
+(`thumbnailPreviews` in `app.ts`); they do not survive a reload or the OAuth
+redirect.
+
+**Backups (JSON / ZIP).** `backup.ts` shapes the JSON export and sanitizes
+imports; `backup-zip.ts` adds thumbnails; `utils/zip.ts` is a dependency-free
+ZIP reader/writer. Imports are merged with the loaded YouTube baseline: a field
+a record omits, or sets to an invalid value, keeps the baseline value, and
+read-only display fields (statistics, upload status, …) are taken only from the
+baseline, never from the file. Change detection (`videoDiffersFromBaseline` for
+records, `hasCurrentChanges` for rendered cards) must cover every field the
+JSON can carry — a field missing there is silently not saved.
 
 ## YouTube Data API gotchas (the load-bearing knowledge)
 
@@ -45,9 +58,10 @@ workarounds.
 
 1. **`videos.update` replaces a whole `part` and deletes any omitted property.**
    When updating `status`, you must re-send every mutable status field you want
-   to keep (`license`, `embeddable`, `publicStatsViewable`, …) or it gets wiped.
-   For videos imported from a backup (which lacks these), the app backfills the
-   live `status` via `getVideoStatus` before saving.
+   to keep (`license`, `embeddable`, `publicStatsViewable`, `publishAt`, …) or it
+   gets wiped. For videos imported from a file with no YouTube baseline
+   (`unverifiedStatusIds`), the app backfills whatever the file left unset from
+   the live `status` via `getVideoStatus` before the first save.
 
 2. **Empty values are not "clear" — some are hard errors.** An empty language
    code (`snippet.defaultLanguage: ""` or `defaultAudioLanguage: ""`) is not a
@@ -83,8 +97,12 @@ workarounds.
 
 7. **`selfDeclaredMadeForKids` must never be round-tripped.** The readable
    `status.madeForKids` is the *effective* value, not the creator's
-   self-declaration; writing it back could flip a video's COPPA designation. The
-   UI shows made-for-kids read-only and never writes the field.
+   self-declaration; writing it back on every save could flip a video's COPPA
+   designation. The made-for-kids control (card select / JSON `made_for_kids`)
+   writes `selfDeclaredMadeForKids` **only when the user changed it vs. a known
+   baseline** (`madeForKidsChanged` in `video-form.ts`); otherwise the field is
+   omitted, which leaves the self-declaration untouched. YouTube may still
+   override the effective value.
 
 8. **Web OAuth clients still require `client_secret` even with PKCE.** Google's
    "Web application" client type rejects the token exchange without the secret,
@@ -92,6 +110,23 @@ workarounds.
    authorized origins/redirect URIs are locked to the deploy domain, which is
    what keeps the exposed secret from being independently usable. Scope is
    minimized to `youtube.force-ssl` only.
+
+9. **`status.publishAt` (scheduled publishing) must be round-tripped — but only
+   while the video stays private.** Omitting it cancels the schedule (rule 1);
+   sending it on a non-private video is rejected. `collectVideoUpdates` drops it
+   once the video is made public/unlisted (and the record forgets it, so going
+   back to private does not resurrect a stale schedule). Values are normalized
+   with `normalizeTimestamp` so API and file values compare equal.
+
+10. **`thumbnails.set`: JPEG/PNG up to 50 MB (was 2 MB), ~50 quota units, verified
+    channels only** (`403` otherwise; `uploadRateLimitExceeded` after many uploads
+    in a day). A ZIP import therefore uploads only images whose SHA-256 differs
+    from the `thumbnail_sha256` recorded at export, and a thumbnail-only change
+    skips `videos.update`. Exports read thumbnails cross-origin from
+    `i.ytimg.com` (it sends `Access-Control-Allow-Origin: *`; CSP `connect-src`
+    allows `https://*.ytimg.com`), and local previews are `blob:` URLs (CSP
+    `img-src` must keep `blob:`). YouTube's CDN serves the old image for a while
+    after an upload, so the uploaded image keeps being shown/exported locally.
 
 ## Build / test / deploy
 

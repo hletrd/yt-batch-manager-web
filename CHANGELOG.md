@@ -9,6 +9,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **Batch-replace thumbnails via a ZIP backup.** *Save as ZIP* exports
+  `videos.json` plus every video's current thumbnail; replace images, load the
+  ZIP back, and the changed ones (detected by SHA-256) are uploaded on save,
+  shown as pending until then. Thumbnail-only changes skip the metadata update.
+- Edit **embedding**, **public stats** and **made for kids** per video and via
+  JSON (made-for-kids is written as the self-declaration, only when changed).
+- JSON imports may be **partial**: fields a record omits keep the current
+  YouTube values. Tags may be a comma-separated string.
 - Edit the **recording date** and **recording location** (latitude/longitude)
   per video, with a use-current-location button and a view-on-map link.
 - Change the **license** (Standard YouTube License / Creative Commons) and the
@@ -27,6 +35,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- **Saving a scheduled video no longer cancels its schedule.** `status.publishAt`
+  is now read, round-tripped while the video is private, exported as
+  `publish_at`, and shown as a badge. Caches from older versions are discarded.
+- **Save All reports failures.** Rejected saves were counted as successful; the
+  summary now counts them and shows the first error.
+- JSON edits to `embeddable`, `public_stats_viewable` and `made_for_kids` were
+  silently ignored; a partial JSON record blanked the description and tags and
+  reset privacy to private; a category/language id missing from the dropdown
+  list was dropped on save.
+- The per-card thumbnail upload accepts up to 50 MB (the API's current limit),
+  and its local preview now renders (the CSP blocked `blob:` images).
 - **Stay signed in across reloads.** The OAuth refresh token is now persisted
   (previously only the 1-hour access token was kept), with PKCE (S256) and
   silent token refresh, so sessions no longer drop every hour.
