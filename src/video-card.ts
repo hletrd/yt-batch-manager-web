@@ -20,6 +20,14 @@ export interface VideoCardRenderContext {
   videoCategories: Record<string, { id: string; title: string }>;
   i18nLanguages: Record<string, { id: string; name: string }>;
   changedVideos: Set<string>;
+  thumbnailPreviews: ReadonlyMap<string, ThumbnailPreview>;
+}
+
+// A thumbnail shown from a local object URL instead of YouTube's CDN: pending
+// (imported, uploaded on save) or just uploaded (the CDN lags behind).
+export interface ThumbnailPreview {
+  url: string;
+  pending: boolean;
 }
 
 // A selected id missing from the option list (e.g. from a backup, or when the
@@ -112,15 +120,27 @@ export function generateResponsiveImageHtml(video: VideoData): string {
     `;
 }
 
+// The card's thumbnail block. Also re-rendered on its own (by id) when a
+// preview is added, uploaded or discarded, so its texts are filled in here
+// rather than left to the page-wide i18n sweep.
+export function renderThumbnailHtml(video: VideoData, preview: ThumbnailPreview | undefined): string {
+  return `
+            <div class="video-thumbnail${preview?.pending ? ' thumbnail-pending' : ''}" id="thumbnail-${video.id}">
+              ${preview ? `<img src="${escapeHtmlAttribute(preview.url)}" alt="Video thumbnail" />` : generateResponsiveImageHtml(video)}
+              ${preview?.pending ? `
+              <span class="thumbnail-pending-badge" data-i18n="video.pendingThumbnail">${escapeHtml(rendererI18n.t('video.pendingThumbnail'))}</span>
+              <button type="button" class="thumbnail-discard-btn" onclick="app.discardPendingThumbnail('${video.id}')" data-i18n-title="video.discardThumbnail" title="${escapeHtmlAttribute(rendererI18n.t('video.discardThumbnail'))}" aria-label="${escapeHtmlAttribute(rendererI18n.t('video.discardThumbnail'))}">×</button>
+              ` : ''}
+              <input type="file" id="thumb-input-${video.id}" class="thumbnail-input" accept="image/jpeg,image/png" hidden onchange="app.handleThumbnailUpload('${video.id}', this)" />
+              <button type="button" class="thumbnail-replace-btn" onclick="document.getElementById('thumb-input-${video.id}').click()" data-i18n="video.replaceThumbnail">${escapeHtml(rendererI18n.t('video.replaceThumbnail'))}</button>
+            </div>`;
+}
+
 export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContext): string {
   return `
         <div class="video-item${ctx.changedVideos.has(video.id) ? ' changed' : ''}" id="video-${video.id}" data-video-id="${video.id}">
           <div class="video-header">
-            <div class="video-thumbnail">
-              ${generateResponsiveImageHtml(video)}
-              <input type="file" id="thumb-input-${video.id}" class="thumbnail-input" accept="image/jpeg,image/png" hidden onchange="app.handleThumbnailUpload('${video.id}', this)" />
-              <button type="button" class="thumbnail-replace-btn" onclick="document.getElementById('thumb-input-${video.id}').click()" data-i18n="video.replaceThumbnail">Replace thumbnail</button>
-            </div>
+            ${renderThumbnailHtml(video, ctx.thumbnailPreviews.get(video.id))}
             <div class="video-info">
               <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="video-id-link">
                 https://youtu.be/${video.id}

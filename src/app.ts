@@ -4,9 +4,11 @@ import type { VideoData } from './types.js';
 import { arraysEqual, publishedTime } from './utils/format.js';
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
-import { DEFAULT_THUMBNAIL, renderVideoCardHtml } from './video-card.js';
+import { DEFAULT_THUMBNAIL, renderThumbnailHtml, renderVideoCardHtml, type ThumbnailPreview } from './video-card.js';
 import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showStatus } from './ui-feedback.js';
 import * as backup from './backup.js';
+import * as backupZip from './backup-zip.js';
+import { isZip } from './utils/zip.js';
 import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
 import * as tags from './tags.js';
@@ -56,6 +58,10 @@ class YouTubeBatchManager {
   // only from the file (older backups lack some, e.g. publish_at), so the live
   // status is fetched once before their first save. See updateVideo.
   private unverifiedStatusIds: Set<string> = new Set();
+  // Thumbnails shown from a local image (see ThumbnailPreview): pending ones
+  // from a ZIP import, uploaded on save, and ones uploaded this session.
+  // Pending ones do not survive a reload or the OAuth redirect.
+  private thumbnailPreviews: Map<string, ThumbnailPreview & { blob: Blob }> = new Map();
   private videoCategories: Record<string, { id: string; title: string }> = {};
   private i18nLanguages: Record<string, { id: string; name: string }> = {};
   private isOAuthRedirecting = false;
@@ -171,7 +177,8 @@ class YouTubeBatchManager {
       const videoHTML = renderVideoCardHtml(video, {
         videoCategories: this.videoCategories,
         i18nLanguages: this.i18nLanguages,
-        changedVideos: this.state.changedVideos
+        changedVideos: this.state.changedVideos,
+        thumbnailPreviews: this.thumbnailPreviews
       });
 
       videoList.insertAdjacentHTML('beforeend', videoHTML);
@@ -201,13 +208,8 @@ class YouTubeBatchManager {
     this.state.currentPage++;
     this.state.isLoading = false;
 
-    const saveJsonLink = document.getElementById('save-json-link');
-    if (saveJsonLink) {
-      if (this.state.allVideos.length > 0) {
-        saveJsonLink.classList.remove('disabled');
-      } else {
-        saveJsonLink.classList.add('disabled');
-      }
+    for (const linkId of ['save-json-link', 'save-zip-link']) {
+      document.getElementById(linkId)?.classList.toggle('disabled', this.state.allVideos.length === 0);
     }
   }
 
@@ -325,6 +327,7 @@ class YouTubeBatchManager {
       this.rebuildVideoIndex();
       this.state.displayedVideos = [...videos];
       this.state.changedVideos.clear();
+      this.dropPendingThumbnails();
 
       this.originalVideosState.clear();
       videos.forEach(video => {
@@ -777,18 +780,58 @@ class YouTubeBatchManager {
       const videoData = this.filterVideoDataForBackup(this.state.allVideos);
 
       const dataStr = JSON.stringify(videoData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(dataBlob);
-      link.download = `youtube-videos-${new Date().toISOString().split('T')[0]}.json`;
-      link.click();
-
-      URL.revokeObjectURL(link.href);
+      this.saveBlobAs(new Blob([dataStr], { type: 'application/json' }), 'json');
       showStatus(rendererI18n.t('status.videosExported', { count: this.state.allVideos.length }), 'success');
     } catch {
       showStatus(rendererI18n.t('status.failedToExportVideos'), 'error');
     }
+  }
+
+  // The JSON backup plus every video's thumbnail (see src/backup-zip.ts), so
+  // thumbnails can be batch-replaced and loaded back via loadFromFile.
+  async downloadVideoZip(): Promise<void> {
+    const videos = this.state.allVideos;
+    if (videos.length === 0) {
+      showStatus(rendererI18n.t('status.noVideosToExport'), 'info');
+      return;
+    }
+
+    const showProgress = (current: number) => showLoadingOverlay(
+      rendererI18n.t('loading.preparingZip'),
+      rendererI18n.t('loading.downloadingThumbnails', { current, total: videos.length })
+    );
+    showProgress(0);
+
+    try {
+      const { blob, exported, failed } = await backupZip.buildBackupZip(videos, {
+        records: this.filterVideoDataForBackup(videos),
+        readme: rendererI18n.t('zip.readme'),
+        localThumbnail: (videoId) => this.thumbnailPreviews.get(videoId),
+        onProgress: (done) => showProgress(done)
+      });
+      this.saveBlobAs(blob, 'zip');
+      const message = rendererI18n.t('status.videosExportedZip', { count: videos.length, thumbnails: exported });
+      if (failed > 0) {
+        showStatus(message + ' · ' + rendererI18n.t('status.thumbnailsNotExported', { count: failed }), 'info');
+      } else {
+        showStatus(message, 'success');
+      }
+    } catch (error) {
+      console.warn('ZIP export failed:', error);
+      showStatus(rendererI18n.t('status.failedToExportVideos'), 'error');
+    } finally {
+      hideLoadingOverlay();
+    }
+  }
+
+  private saveBlobAs(blob: Blob, extension: string): void {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `youtube-videos-${new Date().toISOString().split('T')[0]}.${extension}`;
+    link.click();
+    // Revoke on a later task: revoking synchronously after click() can cancel
+    // the download of a large blob in some browsers.
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
   }
 
   // Delegates to src/backup.ts (A11); kept as a method so the export path
@@ -801,7 +844,7 @@ class YouTubeBatchManager {
     try {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.json';
+      input.accept = '.json,.zip,application/json,application/zip';
 
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
@@ -810,10 +853,20 @@ class YouTubeBatchManager {
         showLoadingOverlay(rendererI18n.t('app.loading'), rendererI18n.t('loading.importingData'));
 
         try {
-          const text = await file.text();
-          const videoData = JSON.parse(text);
-          await this.importVideoData(videoData);
-        } catch {
+          // Detect a ZIP by content, not extension.
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (isZip(bytes)) {
+            const contents = await backupZip.readBackupZip(bytes);
+            if (contents.records === undefined) {
+              showStatus(rendererI18n.t('status.zipMissingJson'), 'error');
+              return;
+            }
+            await this.importVideoData(contents.records as VideoData[], { thumbnails: contents.thumbnails, skippedThumbnails: contents.skipped });
+          } else {
+            await this.importVideoData(JSON.parse(new TextDecoder().decode(bytes)));
+          }
+        } catch (error) {
+          console.warn('Import failed:', error);
           showStatus(rendererI18n.t('status.failedToParseData'), 'error');
         } finally {
           hideLoadingOverlay();
@@ -826,7 +879,10 @@ class YouTubeBatchManager {
     }
   }
 
-  async importVideoData(videoData: VideoData[]): Promise<void> {
+  // `thumbnails`: changed thumbnails from a ZIP backup, by video id; they become
+  // pending previews uploaded on save. `skippedThumbnails`: unusable changed
+  // images, reported in the status.
+  async importVideoData(videoData: VideoData[], options: { thumbnails?: ReadonlyMap<string, Blob>; skippedThumbnails?: number } = {}): Promise<void> {
     if (!Array.isArray(videoData)) {
       showStatus(rendererI18n.t('status.invalidFileFormat'), 'error');
       return;
@@ -872,9 +928,26 @@ class YouTubeBatchManager {
       }
     });
 
+    this.dropPendingThumbnails();
+    let pendingThumbnails = 0;
+    for (const [videoId, blob] of options.thumbnails ?? []) {
+      if (this.videoIndex.has(videoId)) {
+        this.setThumbnailPreview(videoId, blob, true);
+        this.state.changedVideos.add(videoId);
+        pendingThumbnails++;
+      }
+    }
+
     await this.renderVideos(true);
     this.updateSaveAllButton();
-    showStatus(rendererI18n.t('status.videosImported', { count: videoData.length }), 'success');
+
+    const skipped = options.skippedThumbnails ?? 0;
+    const message = [
+      rendererI18n.t('status.videosImported', { count: videoData.length }),
+      pendingThumbnails > 0 ? rendererI18n.t('status.thumbnailsPending', { count: pendingThumbnails }) : '',
+      skipped > 0 ? rendererI18n.t('status.thumbnailsSkipped', { count: skipped }) : ''
+    ].filter(Boolean).join(' · ');
+    showStatus(message, skipped > 0 ? 'info' : 'success');
   }
 
   // Shared logout core (A26): drop the API session via youtubeAPI.logout()
@@ -889,6 +962,7 @@ class YouTubeBatchManager {
     this.state.changedVideos.clear();
     this.originalVideosState.clear();
     this.unverifiedStatusIds.clear();
+    this.clearThumbnailPreviews();
     this.clearVideoCache();
     this.clearTemporaryChanges();
   }
@@ -939,6 +1013,7 @@ class YouTubeBatchManager {
       this.state.changedVideos.clear();
       this.originalVideosState.clear();
       this.unverifiedStatusIds.clear();
+      this.clearThumbnailPreviews();
       this.clearVideoCache();
 
       const container = document.getElementById('video-list');
@@ -1073,7 +1148,7 @@ class YouTubeBatchManager {
       showStatus(rendererI18n.t('status.thumbnailInvalidType'), 'error');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > backupZip.MAX_THUMBNAIL_BYTES) {
       showStatus(rendererI18n.t('status.thumbnailTooLarge'), 'error');
       return;
     }
@@ -1088,13 +1163,9 @@ class YouTubeBatchManager {
 
     try {
       await this.youtubeAPI.setThumbnail(videoId, file);
-      const img = document.querySelector(
-        `#video-${videoId} .video-thumbnail img`
-      ) as HTMLImageElement | null;
-      if (img) {
-        img.removeAttribute('srcset');
-        img.src = URL.createObjectURL(file);
-      }
+      // Replaces any pending (ZIP-imported) thumbnail for this video too.
+      this.setThumbnailPreview(videoId, file, false);
+      this.checkForChanges(videoId);
       showStatus(rendererI18n.t('status.thumbnailUpdated'), 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1104,6 +1175,53 @@ class YouTubeBatchManager {
         btn.disabled = false;
       }
     }
+  }
+
+  discardPendingThumbnail(videoId: string): void {
+    const preview = this.thumbnailPreviews.get(videoId);
+    if (!preview?.pending) {
+      return;
+    }
+    URL.revokeObjectURL(preview.url);
+    this.thumbnailPreviews.delete(videoId);
+    this.refreshThumbnail(videoId);
+    this.checkForChanges(videoId);
+  }
+
+  private setThumbnailPreview(videoId: string, blob: Blob, pending: boolean): void {
+    const previous = this.thumbnailPreviews.get(videoId);
+    if (previous) {
+      URL.revokeObjectURL(previous.url);
+    }
+    this.thumbnailPreviews.set(videoId, { blob, url: URL.createObjectURL(blob), pending });
+    this.refreshThumbnail(videoId);
+  }
+
+  // Re-render just the thumbnail block of a rendered card.
+  private refreshThumbnail(videoId: string): void {
+    const video = this.getVideo(videoId);
+    const block = document.getElementById(`thumbnail-${videoId}`);
+    if (video && block) {
+      block.outerHTML = renderThumbnailHtml(video, this.thumbnailPreviews.get(videoId));
+    }
+  }
+
+  // Forget unsaved (pending) thumbnails; uploaded previews are kept because
+  // YouTube's CDN keeps serving the old image for a while.
+  private dropPendingThumbnails(): void {
+    for (const [videoId, preview] of this.thumbnailPreviews) {
+      if (preview.pending) {
+        URL.revokeObjectURL(preview.url);
+        this.thumbnailPreviews.delete(videoId);
+      }
+    }
+  }
+
+  private clearThumbnailPreviews(): void {
+    for (const preview of this.thumbnailPreviews.values()) {
+      URL.revokeObjectURL(preview.url);
+    }
+    this.thumbnailPreviews.clear();
   }
 
   useCurrentLocation(videoId: string): void {
@@ -1163,7 +1281,7 @@ class YouTubeBatchManager {
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
-    const hasChanges = hasCurrentChanges(videoId, video, original);
+    const hasChanges = hasCurrentChanges(videoId, video, original) || this.thumbnailPreviews.get(videoId)?.pending === true;
 
     if (hasChanges) {
       this.markChanged(videoId);
@@ -1295,6 +1413,35 @@ class YouTubeBatchManager {
       throw new Error('Video not found');
     }
 
+    // A thumbnail-only change skips videos.update: there is nothing else to
+    // send, and it costs 50 quota units.
+    const thumbnail = this.thumbnailPreviews.get(videoId);
+    const pendingThumbnail = thumbnail?.pending ? thumbnail : undefined;
+    if (!pendingThumbnail || this.hasMetadataChanges(videoId, video)) {
+      await this.saveVideoMetadata(videoId, video);
+    }
+
+    if (pendingThumbnail) {
+      await this.youtubeAPI.setThumbnail(videoId, pendingThumbnail.blob);
+      // Keep showing the uploaded image: YouTube's CDN lags behind the API.
+      pendingThumbnail.pending = false;
+      this.refreshThumbnail(videoId);
+    }
+  }
+
+  // Whether anything besides a pending thumbnail differs from the baseline:
+  // judged from the form when the card is rendered, else from the record.
+  private hasMetadataChanges(videoId: string, video: VideoData): boolean {
+    const original = this.originalVideosState.get(videoId);
+    if (!original) {
+      return true;
+    }
+    return document.getElementById(`title-${videoId}`)
+      ? hasCurrentChanges(videoId, video, original)
+      : this.videoDiffersFromBaseline(video, original);
+  }
+
+  private async saveVideoMetadata(videoId: string, video: VideoData): Promise<void> {
     // videos.update replaces the whole `status` part, deleting any omitted
     // property. For a video imported from a file with no YouTube-loaded
     // baseline, status fields the file left unset (older backups lack

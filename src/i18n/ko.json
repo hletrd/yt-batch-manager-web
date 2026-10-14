@@ -44,7 +44,9 @@
     "loadingFromCacheSubtext": "캐시된 동영상 데이터 사용 중",
     "loadingFromYouTube": "YouTube에서 동영상 로딩 중...",
     "loadingFromYouTubeSubtext": "동영상이 많은 채널의 경우 시간이 걸릴 수 있습니다",
-    "importingData": "동영상 데이터 가져오는 중..."
+    "importingData": "동영상 데이터 가져오는 중...",
+    "preparingZip": "ZIP 파일 준비 중…",
+    "downloadingThumbnails": "썸네일 내려받는 중 ({current}/{total})"
   },
   "find": {
     "placeholder": "동영상에서 검색...",
@@ -96,7 +98,9 @@
     "replaceThumbnail": "썸네일 교체",
     "scheduled": "예약 공개 {date}",
     "embeddable": "퍼가기 허용",
-    "publicStatsViewable": "통계 공개"
+    "publicStatsViewable": "통계 공개",
+    "pendingThumbnail": "새 썸네일 · 저장 전",
+    "discardThumbnail": "새 썸네일 취소"
   },
   "license": {
     "standard": "표준 YouTube 라이선스",
@@ -109,8 +113,9 @@
     "titleZA": "제목 (역순)"
   },
   "fileOperations": {
-    "loadFromJSON": "JSON에서 로드",
-    "saveAsJSON": "JSON으로 저장"
+    "loadFromJSON": "파일에서 불러오기 (JSON/ZIP)",
+    "saveAsJSON": "JSON으로 저장",
+    "saveAsZIP": "ZIP으로 저장 (썸네일 포함)"
   },
   "privacy": {
     "public": "공개",
@@ -130,7 +135,7 @@
     "thumbnailUploading": "썸네일 업로드 중…",
     "thumbnailUpdated": "썸네일이 교체되었습니다",
     "thumbnailFailed": "썸네일 교체 실패: {error}",
-    "thumbnailTooLarge": "썸네일은 2MB 이하여야 합니다",
+    "thumbnailTooLarge": "썸네일은 50MB 이하여야 합니다",
     "thumbnailInvalidType": "썸네일은 JPEG 또는 PNG 이미지여야 합니다",
     "geolocationUnavailable": "이 브라우저에서 위치 정보를 사용할 수 없습니다",
     "geolocationFailed": "현재 위치를 가져오지 못했습니다",
@@ -167,7 +172,12 @@
     "failedToParseCredentialsFile": "인증 정보 파일 파싱 실패",
     "temporaryChangesSaved": "저장되지 않은 변경사항을 임시로 저장합니다",
     "temporaryChangesRestored": "{count}개 동영상의 저장되지 않은 변경사항을 가져왔습니다",
-    "authRequiredToRefresh": "동영상을 새로고침하려면 인증이 필요합니다"
+    "authRequiredToRefresh": "동영상을 새로고침하려면 인증이 필요합니다",
+    "videosExportedZip": "동영상 {count}개와 썸네일 {thumbnails}개를 내보냈습니다",
+    "thumbnailsNotExported": "썸네일 {count}개는 내려받지 못했습니다",
+    "thumbnailsPending": "새 썸네일 {count}개는 저장할 때 업로드됩니다",
+    "thumbnailsSkipped": "썸네일 파일 {count}개를 건너뛰었습니다 (50MB 이하 JPEG/PNG만 가능)",
+    "zipMissingJson": "ZIP 파일에 videos.json이 없습니다"
   },
   "credentials": {
     "notFound": "인증 정보를 찾을 수 없습니다",
@@ -180,5 +190,8 @@
     "yes": "예",
     "no": "아니요",
     "keep": "현재 값 유지"
+  },
+  "zip": {
+    "readme": "YT Batch Manager 백업\n\nvideos.json   동영상 메타데이터입니다. 원하는 항목을 고친 뒤 \"파일에서 불러오기\"로\n              이 ZIP을 다시 불러와 변경 내용을 확인하고 저장하세요. 지운 항목은\n              YouTube의 현재 값이 그대로 유지됩니다.\nthumbnails/   동영상별 현재 썸네일입니다. 파일 이름은 동영상 ID입니다.\n\n썸네일 교체: thumbnails/ 안의 이미지를 새 JPEG 또는 PNG(50MB 이하)로 덮어쓰세요.\n파일 이름(동영상 ID)은 그대로 두어야 합니다. 내보낸 이미지와 달라진 파일만\n업로드되며, videos.json의 \"thumbnail_sha256\" 값으로 변경 여부를 판단하므로\n이 값은 수정하지 마세요.\n\n맞춤 썸네일은 인증된 YouTube 채널에서만 쓸 수 있고, 썸네일 1개를 올릴 때마다\nYouTube API 일일 할당량 10,000 중 약 50을 사용합니다.\n"
   }
 }

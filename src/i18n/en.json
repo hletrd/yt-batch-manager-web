@@ -44,7 +44,9 @@
     "loadingFromCacheSubtext": "Using cached video data",
     "loadingFromYouTube": "Loading videos from YouTube...",
     "loadingFromYouTubeSubtext": "This may take a while for channels with many videos",
-    "importingData": "Importing video data..."
+    "importingData": "Importing video data...",
+    "preparingZip": "Preparing ZIP…",
+    "downloadingThumbnails": "Downloading thumbnails ({current}/{total})"
   },
   "find": {
     "placeholder": "Find in videos...",
@@ -96,7 +98,9 @@
     "replaceThumbnail": "Replace thumbnail",
     "scheduled": "Scheduled {date}",
     "embeddable": "Allow embedding",
-    "publicStatsViewable": "Public stats"
+    "publicStatsViewable": "Public stats",
+    "pendingThumbnail": "New thumbnail · unsaved",
+    "discardThumbnail": "Discard new thumbnail"
   },
   "license": {
     "standard": "Standard YouTube License",
@@ -109,8 +113,9 @@
     "titleZA": "Title (Z-A)"
   },
   "fileOperations": {
-    "loadFromJSON": "Load from JSON",
-    "saveAsJSON": "Save as JSON"
+    "loadFromJSON": "Load from file (JSON/ZIP)",
+    "saveAsJSON": "Save as JSON",
+    "saveAsZIP": "Save as ZIP (with thumbnails)"
   },
   "privacy": {
     "public": "Public",
@@ -130,7 +135,7 @@
     "thumbnailUploading": "Uploading thumbnail…",
     "thumbnailUpdated": "Thumbnail updated",
     "thumbnailFailed": "Thumbnail upload failed: {error}",
-    "thumbnailTooLarge": "Thumbnail must be 2 MB or smaller",
+    "thumbnailTooLarge": "Thumbnail must be 50 MB or smaller",
     "thumbnailInvalidType": "Thumbnail must be a JPEG or PNG image",
     "geolocationUnavailable": "Geolocation is not available in this browser",
     "geolocationFailed": "Could not get your current location",
@@ -167,7 +172,12 @@
     "failedToParseCredentialsFile": "Failed to parse credentials file",
     "temporaryChangesSaved": "Unsaved changes have been temporarily saved",
     "temporaryChangesRestored": "Restored unsaved changes for {count} video(s)",
-    "authRequiredToRefresh": "Authentication required to refresh videos"
+    "authRequiredToRefresh": "Authentication required to refresh videos",
+    "videosExportedZip": "Exported {count} videos with {thumbnails} thumbnails",
+    "thumbnailsNotExported": "{count} thumbnail(s) could not be downloaded",
+    "thumbnailsPending": "{count} new thumbnail(s) will be uploaded on save",
+    "thumbnailsSkipped": "{count} thumbnail file(s) skipped (JPEG/PNG up to 50 MB only)",
+    "zipMissingJson": "No videos.json found in the ZIP file"
   },
   "credentials": {
     "notFound": "No Credentials Found",
@@ -180,5 +190,8 @@
     "yes": "Yes",
     "no": "No",
     "keep": "Keep current"
+  },
+  "zip": {
+    "readme": "YT Batch Manager backup\n\nvideos.json   Video metadata. Edit any field, load this ZIP back with\n              \"Load from file\", review the changes and press Save. A field you\n              delete keeps its current value on YouTube.\nthumbnails/   Each video's current thumbnail, named after its video id.\n\nReplacing thumbnails: overwrite an image in thumbnails/ with a new JPEG or\nPNG (up to 50 MB), keeping the video id as the file name. Only images that\ndiffer from the exported ones are uploaded; the \"thumbnail_sha256\" values in\nvideos.json are how changes are detected, so leave them as they are.\n\nCustom thumbnails need a verified YouTube channel, and each thumbnail upload\nuses about 50 units of the YouTube API's 10,000-unit daily quota.\n"
   }
 }

@@ -4,7 +4,11 @@
 //
 // Run: npm run build && npx http-server dist -p 8755 -c-1 & cd e2e && node batch-fields.mjs
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const APP = 'http://127.0.0.1:8755/';
 const results = [];
@@ -40,8 +44,12 @@ const fixtures = [
 ];
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+// A real 16x9 JPEG, used as the "new" thumbnail a user drops into the ZIP.
+const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/wAARCAAJABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwAJCQkJCQkQCQkQFhAQEBYeFhYWFh4mHh4eHh4mLiYmJiYmJi4uLi4uLi4uNzc3Nzc3QEBAQEBISEhISEhISEhI/9sAQwELDAwSERIfEREfSzMqM0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tL/90ABAAB/9oADAMBAAIRAxEAPwDoqKKK4D68/9k=', 'base64');
 const counters = { playlistItems: 0 };
 const puts = [];
+const thumbnailUploads = [];
+const work = mkdtempSync(join(tmpdir(), 'ytbm-e2e-'));
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ locale: 'en-US', acceptDownloads: true });
@@ -86,6 +94,10 @@ await page.route('https://www.googleapis.com/**', async r => {
       return r.fulfill({ status: 400, json: { error: { errors: [{ reason: 'invalidMetadata' }], message: 'Request metadata is invalid.' } } });
     }
     puts.push({ part, body });
+    return r.fulfill({ json: {} });
+  }
+  if (u.pathname.endsWith('/thumbnails/set')) {
+    thumbnailUploads.push({ videoId: u.searchParams.get('videoId'), contentType: r.request().headers()['content-type'], body: r.request().postDataBuffer() });
     return r.fulfill({ json: {} });
   }
   if (u.pathname.endsWith('/channels')) {
@@ -142,6 +154,36 @@ const importFile = async (name, mimeType, buffer) => {
   await chooser.setFiles({ name, mimeType, buffer });
   await page.waitForFunction(() => /Imported|Invalid|Failed|No videos/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
 };
+
+const exportZip = async () => {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.evaluate(() => window.app.downloadVideoZip())
+  ]);
+  const path = join(work, `export-${Date.now()}.zip`);
+  await download.saveAs(path);
+  return path;
+};
+
+const unzipTo = (zipPath) => {
+  const dir = mkdtempSync(join(work, 'x-'));
+  execFileSync('unzip', ['-q', zipPath, '-d', dir]);
+  return dir;
+};
+
+// Re-zip a folder with Info-ZIP (DEFLATE), wrapped in a top-level folder the
+// way people re-zip an extracted backup.
+const zipFolder = (dir) => {
+  const out = join(work, `import-${Date.now()}.zip`);
+  execFileSync('zip', ['-qr', out, '.'], { cwd: dir });
+  const wrapped = join(work, `wrapped-${Date.now()}`);
+  execFileSync('mkdir', ['-p', wrapped]);
+  execFileSync('unzip', ['-q', out, '-d', join(wrapped, 'my backup')]);
+  execFileSync('zip', ['-qr', out + '.wrapped.zip', 'my backup'], { cwd: wrapped });
+  return readFileSync(out + '.wrapped.zip');
+};
+
+const importZip = (buffer) => importFile('backup.zip', 'application/zip', buffer);
 
 const importJson = (records) => importFile('videos.json', 'application/json', Buffer.from(JSON.stringify(records)));
 
@@ -243,9 +285,66 @@ const batchMsg = await statusText();
 ok('B1. failed save counted as failed', /1 successful, 1 failed/.test(batchMsg) && batchMsg.includes('Request metadata is invalid'), batchMsg);
 ok('B2. failed video stays marked changed', JSON.stringify(await changedIds()) === JSON.stringify([VID_S]), JSON.stringify(await changedIds()));
 
+// ---- Thumbnails via ZIP ----
+const zip1 = await exportZip();
+let unzipOk = true;
+try { execFileSync('unzip', ['-tq', zip1]); } catch { unzipOk = false; }
+ok('T1. exported ZIP passes unzip -t', unzipOk);
+const dir1 = unzipTo(zip1);
+const exported = JSON.parse(readFileSync(join(dir1, 'videos.json'), 'utf8'));
+const recS = exported.find(v => v.id === VID_S);
+ok('T2. ZIP has thumbnails + hashes + README', recS?.thumbnail === `thumbnails/${VID_S}.png` &&
+  recS.thumbnail_sha256 === createHash('sha256').update(PNG).digest('hex') &&
+  readFileSync(join(dir1, recS.thumbnail)).equals(PNG) && readFileSync(join(dir1, 'README.txt'), 'utf8').includes('thumbnail_sha256'), JSON.stringify(recS));
+
+await importZip(readFileSync(zip1));
+ok('T3. untouched ZIP re-imports with nothing to save', (await changedIds()).length === 0 && await page.locator('.thumbnail-pending-badge').count() === 0, JSON.stringify(await changedIds()) + ' ' + await statusText());
+
+// Replace S's thumbnail with a JPEG (keeping the .png name) and edit P's title.
+writeFileSync(join(dir1, `thumbnails/${VID_S}.png`), JPEG);
+exported.find(v => v.id === VID_P).title = 'Title from ZIP';
+writeFileSync(join(dir1, 'videos.json'), JSON.stringify(exported, null, 2));
+const editedZip = zipFolder(dir1);
+await importZip(editedZip);
+ok('T4. replaced thumbnail is pending, title edit marked', JSON.stringify(await changedIds()) === JSON.stringify([VID_P, VID_S].sort()) &&
+  await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 1 && await page.locator(`#video-${VID_P} .thumbnail-pending-badge`).count() === 0,
+  JSON.stringify(await changedIds()));
+ok('T4b. status mentions the pending thumbnail', /1 new thumbnail/.test(await statusText()), await statusText());
+ok('T5. pending preview renders (blob: allowed by CSP)', await page.locator(`#video-${VID_S} .video-thumbnail img`).evaluate(img => img.src.startsWith('blob:') && img.naturalWidth === 16));
+
+const uploadsBefore = thumbnailUploads.length;
+const putsT = await saveAll();
+const uploadsT = thumbnailUploads.slice(uploadsBefore);
+ok('T6. thumbnail uploaded once, as JPEG, for S only', uploadsT.length === 1 && uploadsT[0].videoId === VID_S && uploadsT[0].contentType === 'image/jpeg' && uploadsT[0].body.equals(JPEG),
+  JSON.stringify(uploadsT.map(u => [u.videoId, u.contentType, u.body.length])));
+ok('T7. thumbnail-only video skips videos.update', putsT.length === 1 && putsT[0].body.id === VID_P && putsT[0].body.snippet.title === 'Title from ZIP', JSON.stringify(putsT.map(p => p.body.id)));
+ok('T8. after save: nothing pending, uploaded image still shown', (await changedIds()).length === 0 && await page.locator('.thumbnail-pending-badge').count() === 0 &&
+  await page.locator(`#video-${VID_S} .video-thumbnail img`).evaluate(img => img.src.startsWith('blob:')));
+
+// Export again: the uploaded image is exported (YouTube's CDN may still serve
+// the old one) with its own hash, so it is not re-uploaded on re-import.
+const zip2 = await exportZip();
+const dir2 = unzipTo(zip2);
+const recS2 = JSON.parse(readFileSync(join(dir2, 'videos.json'), 'utf8')).find(v => v.id === VID_S);
+ok('T9. re-export carries the uploaded thumbnail', recS2.thumbnail === `thumbnails/${VID_S}.jpg` && readFileSync(join(dir2, recS2.thumbnail)).equals(JPEG), JSON.stringify(recS2));
+await importZip(readFileSync(zip2));
+ok('T9b. ...and re-importing it uploads nothing', (await changedIds()).length === 0, JSON.stringify(await changedIds()));
+
+// Pending thumbnail can be discarded; unusable files are skipped and reported.
+await importZip(editedZip);
+await page.click(`#video-${VID_S} .thumbnail-discard-btn`);
+ok('T10. discarding the pending thumbnail unmarks a thumbnail-only change', !(await changedIds()).includes(VID_S) && await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 0, JSON.stringify(await changedIds()));
+writeFileSync(join(dir1, `thumbnails/${VID_P}.png`), 'not an image');
+await importZip(zipFolder(dir1));
+ok('T11. non-image thumbnail skipped and reported', /1 thumbnail file\(s\) skipped/.test(await statusText()) && await page.locator(`#video-${VID_P} .thumbnail-pending-badge`).count() === 0, await statusText());
+rmSync(join(dir1, 'videos.json'));
+await importZip(zipFolder(dir1));
+ok('T12. ZIP without videos.json is rejected clearly', (await statusText()).includes('No videos.json'), await statusText());
+
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 await browser.close();
+rmSync(work, { recursive: true, force: true });
 let fail = 0;
 for (const r of results) { console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.pass ? '' : '  -- ' + r.detail}`); if (!r.pass) fail++; }
 console.log(`\n${results.length - fail}/${results.length} passed`);
