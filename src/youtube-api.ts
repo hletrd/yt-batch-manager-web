@@ -165,6 +165,15 @@ interface VideoUpdateRequestBody {
   };
 }
 
+// A failed Data API call carrying YouTube's error reason (e.g. quotaExceeded,
+// uploadRateLimitExceeded), so callers can react to the cause instead of
+// pattern-matching the message.
+export class YouTubeApiError extends Error {
+  constructor(message: string, readonly reason?: string) {
+    super(message);
+    this.name = 'YouTubeApiError';
+  }
+}
 
 export class YouTubeAPI {
   private config: YouTubeAPIConfig = {};
@@ -720,7 +729,7 @@ export class YouTubeAPI {
     );
 
     if (!response.ok) {
-      throw new Error(await this.describeError(response, 'Failed to set thumbnail'));
+      throw await this.apiError(response, 'Failed to set thumbnail');
     }
   }
 
@@ -904,10 +913,15 @@ export class YouTubeAPI {
   // Surface the YouTube API error reason (e.g. quotaExceeded,
   // ACCESS_TOKEN_SCOPE_INSUFFICIENT) instead of a bare status code.
   private async describeError(response: Response, prefix: string): Promise<string> {
+    return (await this.apiError(response, prefix)).message;
+  }
+
+  private async apiError(response: Response, prefix?: string): Promise<YouTubeApiError> {
     let detail = `${response.status}`;
+    let reason: string | undefined;
     try {
       const data: YouTubeErrorResponse = await response.json();
-      const reason = data?.error?.errors?.[0]?.reason || data?.error?.status;
+      reason = data?.error?.errors?.[0]?.reason || data?.error?.status;
       const message = data?.error?.message;
       if (reason) {
         detail += ` ${reason}`;
@@ -920,7 +934,7 @@ export class YouTubeAPI {
         detail += ` ${response.statusText}`;
       }
     }
-    return `${prefix}: ${detail}`;
+    return new YouTubeApiError(prefix ? `${prefix}: ${detail}` : detail, reason);
   }
 
   // YouTube error messages can embed HTML (e.g. the quota message wraps "quota"
@@ -983,7 +997,7 @@ export class YouTubeAPI {
     }
   }
 
-  async updateVideo(videoId: string, updates: Partial<VideoData> & { recording_details_changed?: boolean; self_declared_made_for_kids?: boolean }): Promise<{ success: boolean; error?: string }> {
+  async updateVideo(videoId: string, updates: Partial<VideoData> & { recording_details_changed?: boolean; self_declared_made_for_kids?: boolean }): Promise<{ success: boolean; error?: string; reason?: string }> {
     if (!this.isAuthenticated || !this.accessToken) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -1097,15 +1111,15 @@ export class YouTubeAPI {
       );
 
       if (!response.ok) {
-        const errorData: YouTubeErrorResponse = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw await this.apiError(response);
       }
 
       return { success: true };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        reason: error instanceof YouTubeApiError ? error.reason : undefined
       };
     }
   }

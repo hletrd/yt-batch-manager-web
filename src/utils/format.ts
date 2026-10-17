@@ -93,6 +93,29 @@ export function formatDateTime(iso: string, locale: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+// When the YouTube Data API daily quota next resets: midnight Pacific Time.
+export function nextQuotaReset(now: Date = new Date()): Date {
+  const pacificFields = (at: Date) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles', hourCycle: 'h23',
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
+    }).formatToParts(at);
+    const field = (type: string) => Number(parts.find(part => part.type === type)?.value);
+    return { year: field('year'), month: field('month'), day: field('day'), hour: field('hour'), minute: field('minute'), second: field('second') };
+  };
+  // Offset of Pacific wall-clock time from UTC at a given instant (PST/PDT).
+  const offsetAt = (at: Date) => {
+    const f = pacificFields(at);
+    return Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute, f.second) - Math.floor(at.getTime() / 1000) * 1000;
+  };
+  const today = pacificFields(now);
+  const nextMidnight = Date.UTC(today.year, today.month - 1, today.day + 1);
+  // Use the offset in effect at that midnight, which differs from now's on a
+  // DST-change day.
+  const guess = new Date(nextMidnight - offsetAt(now));
+  return new Date(nextMidnight - offsetAt(guess));
+}
+
 export function parseCoordInput(raw: string | undefined, fallback: number | undefined): number | undefined {
   if (raw === undefined) return fallback;
   const trimmed = raw.trim();

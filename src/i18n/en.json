@@ -177,7 +177,8 @@
     "thumbnailsNotExported": "{count} thumbnail(s) could not be downloaded",
     "thumbnailsPending": "{count} new thumbnail(s) will be uploaded on save",
     "thumbnailsSkipped": "{count} thumbnail file(s) skipped (JPEG/PNG up to 50 MB only)",
-    "zipMissingJson": "No videos.json found in the ZIP file"
+    "zipMissingJson": "No videos.json found in the ZIP file",
+    "unsavedChangesRestored": "Restored {count} unsaved change(s). Press Save All to save them."
   },
   "credentials": {
     "notFound": "No Credentials Found",
@@ -193,5 +194,15 @@
   },
   "zip": {
     "readme": "YT Batch Manager backup\n\nvideos.json   Video metadata. Edit any field, load this ZIP back with\n              \"Load from file\", review the changes and press Save. A field you\n              delete keeps its current value on YouTube.\nthumbnails/   Each video's current thumbnail, named after its video id.\n\nReplacing thumbnails: overwrite an image in thumbnails/ with a new JPEG or\nPNG (up to 50 MB), keeping the video id as the file name. Only images that\ndiffer from the exported ones are uploaded; the \"thumbnail_sha256\" values in\nvideos.json are how changes are detected, so leave them as they are.\n\nCustom thumbnails need a verified YouTube channel, and each thumbnail upload\nuses about 50 units of the YouTube API's 10,000-unit daily quota.\n"
+  },
+  "notice": {
+    "quotaExhausted": "The YouTube API daily quota ran out: saved {saved} of {total} videos. To save the other {remaining}, press Save All again after the quota resets at {resetTime} (midnight Pacific Time).",
+    "thumbnailLimit": "YouTube's thumbnail upload limit (per 24 hours) was reached, so {count} thumbnail(s) were not uploaded. Press Save All again later to upload them.",
+    "keepFailed": "They could not be kept in this browser's storage, so keep this tab open until they are saved.",
+    "unsavedChangesFound": "{count} video change(s) from {date} could not be saved because the API quota ran out.",
+    "restore": "Restore",
+    "discard": "Discard",
+    "dismiss": "Dismiss",
+    "kept": "The unsaved changes are kept in this browser: you can close this tab and restore them later."
   }
 }

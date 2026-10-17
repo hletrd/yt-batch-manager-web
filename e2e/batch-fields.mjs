@@ -16,6 +16,7 @@ const ok = (name, cond, detail = '') => results.push({ name, pass: !!cond, detai
 
 const VID_S = 'SSSSSSSSSS1'; // private, scheduled to publish
 const VID_P = 'PPPPPPPPPP2'; // public, every status field set
+const VID_Q = 'QQQQQQQQQQ3'; // plain public video (third one for the quota tests)
 const SCHEDULE = '2030-01-01T09:00:00Z';
 
 const videoItem = (id, opts) => ({
@@ -40,7 +41,8 @@ const videoItem = (id, opts) => ({
 
 const fixtures = [
   videoItem(VID_S, { title: 'Scheduled video', privacy: 'private', publishAt: SCHEDULE, recordingDate: '2023-05-10T00:00:00.000Z' }),
-  videoItem(VID_P, { title: 'Public video', privacy: 'public', tags: ['keep', 'these'] })
+  videoItem(VID_P, { title: 'Public video', privacy: 'public', tags: ['keep', 'these'] }),
+  videoItem(VID_Q, { title: 'Third video', privacy: 'public' })
 ];
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -71,13 +73,20 @@ const page = await ctx.newPage();
 const pageErrors = [];
 // The batch-failure test deliberately arms a 400; its resource error and the
 // app's batch error log are expected, not regressions.
-const EXPECTED = [/status of 400/, /Batch save errors/];
+const EXPECTED = [/status of 400/, /status of 403/, /Batch save errors/];
 page.on('pageerror', e => pageErrors.push('pageerror: ' + e.message));
 page.on('console', m => {
   if (m.type() !== 'error' || EXPECTED.some(re => re.test(m.text()))) return;
   pageErrors.push('console: ' + m.text());
 });
 let failPutFor = null;
+// Quota simulation: PUTs beyond `putsAllowed` get 403 quotaExceeded; with
+// `thumbnailLimit`, thumbnails.set gets 403 uploadRateLimitExceeded.
+let putsAllowed = Infinity;
+let thumbnailLimit = false;
+let putAttempts = 0;
+// Reloads below happen with unsaved changes; leave the page like a user would.
+page.on('dialog', dialog => dialog.accept());
 
 await page.route('**/*', r => r.request().url().startsWith(APP) ? r.continue() : r.abort());
 // Thumbnail CDN: serve a 1x1 PNG with the CORS header i.ytimg.com really sends
@@ -89,6 +98,10 @@ await page.route('https://www.googleapis.com/**', async r => {
   const part = u.searchParams.get('part') || '';
   if (u.pathname.endsWith('/videos') && r.request().method() === 'PUT') {
     const body = JSON.parse(r.request().postData() || '{}');
+    putAttempts++;
+    if (puts.length >= putsAllowed) {
+      return r.fulfill({ status: 403, json: { error: { errors: [{ reason: 'quotaExceeded' }], message: 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.' } } });
+    }
     if (body.id === failPutFor) {
       failPutFor = null;
       return r.fulfill({ status: 400, json: { error: { errors: [{ reason: 'invalidMetadata' }], message: 'Request metadata is invalid.' } } });
@@ -97,6 +110,9 @@ await page.route('https://www.googleapis.com/**', async r => {
     return r.fulfill({ json: {} });
   }
   if (u.pathname.endsWith('/thumbnails/set')) {
+    if (thumbnailLimit) {
+      return r.fulfill({ status: 403, json: { error: { errors: [{ reason: 'uploadRateLimitExceeded' }], message: 'The channel has uploaded too many thumbnails recently.' } } });
+    }
     thumbnailUploads.push({ videoId: u.searchParams.get('videoId'), contentType: r.request().headers()['content-type'], body: r.request().postDataBuffer() });
     return r.fulfill({ json: {} });
   }
@@ -341,6 +357,70 @@ ok('T11. non-image thumbnail skipped and reported', /1 thumbnail file\(s\) skipp
 rmSync(join(dir1, 'videos.json'));
 await importZip(zipFolder(dir1));
 ok('T12. ZIP without videos.json is rejected clearly', (await statusText()).includes('No videos.json'), await statusText());
+
+// ---- API quota running out mid-batch ----
+const noticeText = () => page.evaluate(() => { const n = document.getElementById('notice-banner'); return n && !n.hidden ? n.textContent : ''; });
+const reloadAndWait = async () => {
+  await page.reload({ waitUntil: 'load' });
+  await page.locator(`#video-${VID_S}`).waitFor({ state: 'visible', timeout: 20000 });
+  await page.waitForFunction(() => /Loaded/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+};
+const cachedTitle = (id) => page.evaluate(i => JSON.parse(localStorage.getItem('yt_video_cache')).videos.find(v => v.id === i)?.title, id);
+
+await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
+await page.click('#refresh-videos-btn');
+await page.waitForFunction(() => /Loaded 3/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+await page.fill(`#title-${VID_S}`, 'Quota S');
+await page.fill(`#title-${VID_P}`, 'Quota P');
+await page.fill(`#title-${VID_Q}`, 'Quota Q');
+putsAllowed = puts.length + 1;
+const attemptsBefore = putAttempts;
+await page.click('#save-all-btn');
+await page.waitForFunction(() => !document.getElementById('notice-banner').hidden, null, { timeout: 15000 });
+ok('Q1. batch stops at the first quota error', putAttempts - attemptsBefore === 2, `attempts=${putAttempts - attemptsBefore}`);
+ok('Q2. lasting notice: progress, reset time, kept', /saved 1 of 3/.test(await noticeText()) && /midnight Pacific/.test(await noticeText()) && /kept in this browser/.test(await noticeText()), await noticeText());
+ok('Q3. unsaved videos stay marked', JSON.stringify(await changedIds()) === JSON.stringify([VID_P, VID_Q]), JSON.stringify(await changedIds()));
+ok('Q4. cache holds the saved title, not unsaved edits', await cachedTitle(VID_S) === 'Quota S' && await cachedTitle(VID_P) === 'Public video', `${await cachedTitle(VID_S)} / ${await cachedTitle(VID_P)}`);
+
+await reloadAndWait();
+ok('Q5. after reload the saved video shows its saved value (from cache)', await page.locator(`#title-${VID_S}`).inputValue() === 'Quota S');
+ok('Q6. kept changes are offered back', /2 video change\(s\)/.test(await noticeText()), await noticeText());
+await page.click('#notice-banner button:has-text("Restore")');
+await page.waitForFunction(() => /Restored/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 10000 });
+ok('Q7. restore brings the edits back', JSON.stringify(await changedIds()) === JSON.stringify([VID_P, VID_Q]) &&
+  await page.locator(`#title-${VID_P}`).inputValue() === 'Quota P' && await page.locator(`#title-${VID_Q}`).inputValue() === 'Quota Q', JSON.stringify(await changedIds()));
+putsAllowed = Infinity;
+const putsQ = await saveAll();
+ok('Q8. saving after the reset sends the restored edits', putsQ.length === 2 && putsQ.map(x => x.body.snippet.title).sort().join() === 'Quota P,Quota Q', JSON.stringify(putsQ.map(x => x.body.snippet?.title)));
+await reloadAndWait();
+ok('Q9. once saved, nothing is offered again', (await noticeText()) === '', await noticeText());
+
+// Thumbnail upload limit: metadata keeps saving, thumbnails are kept.
+await importZip(editedZip);
+thumbnailLimit = true;
+const uploadsBeforeLimit = thumbnailUploads.length;
+const putsBeforeLimit = puts.length;
+await page.click('#save-all-btn');
+await page.waitForFunction(() => !document.getElementById('notice-banner').hidden, null, { timeout: 15000 });
+const putsL = puts.slice(putsBeforeLimit);
+ok('L3. metadata still saved under the thumbnail limit', putsL.some(x => x.body.id === VID_P && x.body.snippet.title === 'Title from ZIP'), JSON.stringify(putsL.map(x => x.body.id)));
+ok('L4. thumbnail kept pending with a notice', /thumbnail upload limit/.test(await noticeText()) && JSON.stringify(await changedIds()) === JSON.stringify([VID_S]) &&
+  await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 1, (await noticeText()) + JSON.stringify(await changedIds()));
+await reloadAndWait();
+ok('L5. imported-set save reached the cache', await page.locator(`#title-${VID_P}`).inputValue() === 'Title from ZIP');
+await page.click('#notice-banner button:has-text("Restore")');
+await page.waitForFunction(() => /Restored/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 10000 });
+const restoredImg = await page.locator(`#video-${VID_S} .video-thumbnail img`).evaluate(async img => {
+  const before = img.naturalWidth;
+  await img.decode().catch(() => undefined);
+  return { src: img.src.slice(0, 5), before, after: img.naturalWidth };
+});
+ok('L6. kept thumbnail restored as pending', await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 1 &&
+  restoredImg.src === 'blob:' && restoredImg.after === 16, JSON.stringify(restoredImg));
+thumbnailLimit = false;
+await saveAll();
+const uploadsL = thumbnailUploads.slice(uploadsBeforeLimit);
+ok('L7. kept thumbnail uploaded once the limit clears', uploadsL.length === 1 && uploadsL[0].videoId === VID_S && uploadsL[0].body.equals(JPEG), JSON.stringify(uploadsL.map(u => u.videoId)));
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 

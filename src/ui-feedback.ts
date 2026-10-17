@@ -17,6 +17,55 @@ export function showStatus(message: string, type: 'info' | 'success' | 'error' =
   }
 }
 
+export interface NoticeAction {
+  label: string;
+  onClick(): void;
+}
+
+// A persistent notice above the video list for things the user has to act on
+// later (e.g. changes left unsaved by an exhausted API quota) — unlike the
+// status toast, it stays until dismissed. Built with DOM APIs, so the message
+// is never parsed as HTML.
+export function showNotice(message: string, actions: NoticeAction[] = []): void {
+  const notice = document.getElementById('notice-banner');
+  if (!notice) return;
+  notice.replaceChildren();
+
+  const text = document.createElement('p');
+  text.className = 'notice-text';
+  text.textContent = message;
+  notice.appendChild(text);
+
+  const buttons = document.createElement('div');
+  buttons.className = 'notice-actions';
+  for (const action of actions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-secondary';
+    button.textContent = action.label;
+    button.addEventListener('click', () => action.onClick());
+    buttons.appendChild(button);
+  }
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'notice-close';
+  close.textContent = '×';
+  close.setAttribute('aria-label', rendererI18n.t('notice.dismiss'));
+  close.addEventListener('click', hideNotice);
+  buttons.appendChild(close);
+  notice.appendChild(buttons);
+
+  notice.hidden = false;
+}
+
+export function hideNotice(): void {
+  const notice = document.getElementById('notice-banner');
+  if (notice) {
+    notice.hidden = true;
+    notice.replaceChildren();
+  }
+}
+
 export function showAuthenticationPrompt(): void {
   const videoList = document.getElementById('video-list');
   if (!videoList) return;

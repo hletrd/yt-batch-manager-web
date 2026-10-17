@@ -177,7 +177,8 @@
     "thumbnailsNotExported": "썸네일 {count}개는 내려받지 못했습니다",
     "thumbnailsPending": "새 썸네일 {count}개는 저장할 때 업로드됩니다",
     "thumbnailsSkipped": "썸네일 파일 {count}개를 건너뛰었습니다 (50MB 이하 JPEG/PNG만 가능)",
-    "zipMissingJson": "ZIP 파일에 videos.json이 없습니다"
+    "zipMissingJson": "ZIP 파일에 videos.json이 없습니다",
+    "unsavedChangesRestored": "저장하지 못한 변경 사항 {count}개를 복원했습니다. '모두 저장'을 눌러 저장하세요."
   },
   "credentials": {
     "notFound": "인증 정보를 찾을 수 없습니다",
@@ -193,5 +194,15 @@
   },
   "zip": {
     "readme": "YT Batch Manager 백업\n\nvideos.json   동영상 메타데이터입니다. 원하는 항목을 고친 뒤 \"파일에서 불러오기\"로\n              이 ZIP을 다시 불러와 변경 내용을 확인하고 저장하세요. 지운 항목은\n              YouTube의 현재 값이 그대로 유지됩니다.\nthumbnails/   동영상별 현재 썸네일입니다. 파일 이름은 동영상 ID입니다.\n\n썸네일 교체: thumbnails/ 안의 이미지를 새 JPEG 또는 PNG(50MB 이하)로 덮어쓰세요.\n파일 이름(동영상 ID)은 그대로 두어야 합니다. 내보낸 이미지와 달라진 파일만\n업로드되며, videos.json의 \"thumbnail_sha256\" 값으로 변경 여부를 판단하므로\n이 값은 수정하지 마세요.\n\n맞춤 썸네일은 인증된 YouTube 채널에서만 쓸 수 있고, 썸네일 1개를 올릴 때마다\nYouTube API 일일 할당량 10,000 중 약 50을 사용합니다.\n"
+  },
+  "notice": {
+    "quotaExhausted": "YouTube API 일일 할당량이 소진되어 {total}개 중 {saved}개만 저장했습니다. 나머지 {remaining}개는 할당량이 초기화되는 {resetTime}(태평양 시간 자정) 이후에 '모두 저장'을 다시 눌러 저장하세요.",
+    "thumbnailLimit": "YouTube의 썸네일 업로드 한도(최근 24시간)에 도달해 썸네일 {count}개를 올리지 못했습니다. 나중에 '모두 저장'을 다시 눌러 업로드하세요.",
+    "keepFailed": "이 브라우저 저장소에 보관하지 못했으니, 저장을 마칠 때까지 이 탭을 닫지 마세요.",
+    "unsavedChangesFound": "{date}에 API 할당량 소진으로 저장하지 못한 동영상 변경 사항 {count}개가 남아 있습니다.",
+    "restore": "복원",
+    "discard": "버리기",
+    "dismiss": "닫기",
+    "kept": "저장하지 못한 변경 사항은 이 브라우저에 보관했으니, 탭을 닫았다가 나중에 복원해도 됩니다."
   }
 }

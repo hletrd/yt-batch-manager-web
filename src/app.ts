@@ -1,14 +1,15 @@
 import rendererI18n from './i18n/renderer-i18n.js';
-import { YouTubeAPI } from './youtube-api.js';
+import { YouTubeAPI, YouTubeApiError } from './youtube-api.js';
 import type { VideoData } from './types.js';
-import { arraysEqual, publishedTime } from './utils/format.js';
+import { arraysEqual, formatDateTime, nextQuotaReset, publishedTime } from './utils/format.js';
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderThumbnailHtml, renderVideoCardHtml, type ThumbnailPreview } from './video-card.js';
-import { hideLoadingOverlay, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showStatus } from './ui-feedback.js';
+import { hideLoadingOverlay, hideNotice, renderNoCredentials, showAuthenticationPrompt, showLoadingOverlay, showNotice, showStatus } from './ui-feedback.js';
 import * as backup from './backup.js';
 import * as backupZip from './backup-zip.js';
 import { isZip } from './utils/zip.js';
+import * as unsavedChanges from './unsaved-changes.js';
 import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
 import * as tags from './tags.js';
@@ -16,6 +17,14 @@ import { autoResizeTextarea, resizeTextareaNow } from './textarea-resize.js';
 import * as headerUi from './header-ui.js';
 import { setupGlobalEventListeners } from './global-events.js';
 import { collectVideoUpdates, hasCurrentChanges } from './video-form.js';
+
+// YouTube error reasons after which further calls fail until the daily quota
+// resets (midnight Pacific Time), and the separate per-channel limit on
+// thumbnail uploads (rolling 24 hours).
+const QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded']);
+const isQuotaError = (error: unknown): boolean => error instanceof YouTubeApiError && QUOTA_REASONS.has(error.reason ?? '');
+const isThumbnailLimitError = (error: unknown): boolean => error instanceof YouTubeApiError && error.reason === 'uploadRateLimitExceeded';
+const errorMessage = (error: unknown): string => error instanceof Error ? error.message : 'Unknown error';
 
 interface AppState {
   changedVideos: Set<string>;
@@ -345,6 +354,7 @@ class YouTubeBatchManager {
 
       const cacheStatus = forceRefresh ? '' : ' ' + rendererI18n.t('status.cached');
       showStatus(rendererI18n.t('status.videosLoaded', { count: videos.length }) + cacheStatus, 'success');
+      await this.offerUnsavedChanges();
     } catch (error) {
       console.error('Error loading videos:', error);
       this.updateAuthDependentButtons();
@@ -701,7 +711,12 @@ class YouTubeBatchManager {
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
-    const savedIds: string[] = [];
+    const attemptedIds: string[] = [];
+    // Once the daily quota is gone every further call fails, so the batch
+    // stops; once the thumbnail-upload limit is hit, the rest of the batch
+    // saves metadata only. Either way the leftovers are kept for later.
+    let quotaExhausted = false;
+    let thumbnailsBlocked = false;
 
     showLoadingOverlay(
       rendererI18n.t('status.savingBatch', { current: 1, total: changedVideosArray.length }),
@@ -732,25 +747,40 @@ class YouTubeBatchManager {
 
       // saveVideoFromCard reports failure by its result, not by throwing (a
       // try/catch here used to count every failed save as a success).
-      const error = await this.saveVideoFromCard(videoId);
+      attemptedIds.push(videoId);
+      const { error, thumbnailDeferred } = await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailsBlocked });
+      processedCount++;
       if (error === undefined) {
-        successCount++;
-        savedIds.push(videoId);
+        // A deferred thumbnail means the metadata was saved but the video
+        // stays changed until its thumbnail is uploaded.
+        if (!thumbnailDeferred) {
+          successCount++;
+        }
+      } else if (isQuotaError(error)) {
+        quotaExhausted = true;
+        break;
+      } else if (isThumbnailLimitError(error)) {
+        thumbnailsBlocked = true;
       } else {
         errorCount++;
-        errors.push(`Video ${videoId}: ${error}`);
+        errors.push(`Video ${videoId}: ${errorMessage(error)}`);
       }
-
-      processedCount++;
     }
 
     this.batchSaveInProgress = false;
     hideLoadingOverlay();
 
-    // Surface the first failure's reason (e.g. quota, or an unverified channel
-    // for thumbnails) so a partial failure is actionable.
+    // Partial results are real: write what reached YouTube to the cache, and
+    // drop it from any changes kept from an earlier interrupted save.
+    this.updateVideoCache(attemptedIds);
+    void unsavedChanges.forgetUnsavedChanges(attemptedIds.filter(id => !this.state.changedVideos.has(id)));
+
+    // Surface the first failure's reason (e.g. an unverified channel for
+    // thumbnails) so a partial failure is actionable.
     const firstError = errors.length > 0 ? ` — ${errors[0]}` : '';
-    if (successCount > 0) {
+    if (quotaExhausted || thumbnailsBlocked) {
+      await this.keepUnsavedChanges(quotaExhausted ? 'quota' : 'thumbnailLimit', { saved: successCount, total: changedVideosArray.length });
+    } else if (successCount > 0) {
       showStatus(
         rendererI18n.t('status.batchSaveComplete', {
           successful: successCount,
@@ -759,8 +789,9 @@ class YouTubeBatchManager {
         }) + firstError,
         errorCount === 0 ? 'success' : 'info'
       );
-
-      this.updateVideoCache(savedIds);
+      if (this.state.changedVideos.size === 0) {
+        hideNotice();
+      }
     } else {
       showStatus(
         rendererI18n.t('status.batchSaveFailed', { failed: errorCount }) + firstError,
@@ -970,6 +1001,10 @@ class YouTubeBatchManager {
     this.clearThumbnailPreviews();
     this.clearVideoCache();
     this.clearTemporaryChanges();
+    // Kept changes hold the channel's video data; logging out removes them like
+    // the video cache.
+    void unsavedChanges.clearUnsavedChanges();
+    hideNotice();
   }
 
   // Shared signed-out video-list placeholder (A26): prompt for authentication
@@ -1020,6 +1055,8 @@ class YouTubeBatchManager {
       this.unverifiedStatusIds.clear();
       this.clearThumbnailPreviews();
       this.clearVideoCache();
+      void unsavedChanges.clearUnsavedChanges();
+      hideNotice();
 
       const container = document.getElementById('video-list');
       if (container) {
@@ -1286,7 +1323,7 @@ class YouTubeBatchManager {
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
-    const hasChanges = hasCurrentChanges(videoId, video, original) || this.thumbnailPreviews.get(videoId)?.pending === true;
+    const hasChanges = this.hasMetadataChanges(videoId, video) || this.thumbnailPreviews.get(videoId)?.pending === true;
 
     if (hasChanges) {
       this.markChanged(videoId);
@@ -1370,21 +1407,28 @@ class YouTubeBatchManager {
   // Inline-handler entry point for a card's Update button. Resolves to whether
   // the save succeeded.
   async updateVideo(videoId: string, suppressStatus: boolean = false): Promise<boolean> {
-    const error = await this.saveVideoFromCard(videoId);
+    const { error } = await this.saveVideoFromCard(videoId);
+    // Even a failed save may have saved the metadata (e.g. only the thumbnail
+    // upload failed); the baseline says what reached YouTube.
+    this.updateVideoCache([videoId]);
     if (error === undefined) {
+      void unsavedChanges.forgetUnsavedChanges([videoId]);
       if (!suppressStatus) {
         showStatus(rendererI18n.t('status.videoUpdated'), 'success');
       }
-      this.updateVideoCache([videoId]);
+    } else if (isQuotaError(error) || isThumbnailLimitError(error)) {
+      await this.keepUnsavedChanges(isQuotaError(error) ? 'quota' : 'thumbnailLimit', { saved: 0, total: 1 });
     } else if (!suppressStatus) {
-      showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + error, 'error');
+      showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + errorMessage(error), 'error');
     }
     return error === undefined;
   }
 
-  // Save one video and update its card (busy button, changed marker).
-  // Resolves to the failure reason, or undefined on success; never throws.
-  private async saveVideoFromCard(videoId: string): Promise<string | undefined> {
+  // Save one video and update its card (busy button, changed marker). Never
+  // throws: a failure is returned as `error`. `thumbnailDeferred`: saved, but
+  // its pending thumbnail was held back (options.skipThumbnail), so the video
+  // stays changed.
+  private async saveVideoFromCard(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<{ error?: unknown; thumbnailDeferred?: boolean }> {
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
     if (updateBtn) {
@@ -1393,15 +1437,19 @@ class YouTubeBatchManager {
     }
 
     try {
-      await this.saveVideo(videoId);
-      this.unmarkChanged(videoId);
-      if (updateBtn) {
-        updateBtn.style.display = 'none';
+      const { thumbnailDeferred } = await this.saveVideo(videoId, options);
+      if (thumbnailDeferred) {
+        this.checkForChanges(videoId);
+      } else {
+        this.unmarkChanged(videoId);
+        if (updateBtn) {
+          updateBtn.style.display = 'none';
+        }
       }
-      return undefined;
+      return { thumbnailDeferred };
     } catch (error) {
       this.checkForChanges(videoId);
-      return error instanceof Error ? error.message : 'Unknown error';
+      return { error };
     } finally {
       if (updateBtn) {
         updateBtn.textContent = rendererI18n.t('buttons.updateVideoInfo');
@@ -1411,8 +1459,8 @@ class YouTubeBatchManager {
   }
 
   // Send one video's edits to YouTube and adopt them as the new baseline.
-  // Throws on failure.
-  private async saveVideo(videoId: string): Promise<void> {
+  // Throws on failure (a YouTubeApiError carries YouTube's reason).
+  private async saveVideo(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<{ thumbnailDeferred: boolean }> {
     const video = this.getVideo(videoId);
     if (!video) {
       throw new Error('Video not found');
@@ -1426,12 +1474,106 @@ class YouTubeBatchManager {
       await this.saveVideoMetadata(videoId, video);
     }
 
+    if (pendingThumbnail && options.skipThumbnail) {
+      return { thumbnailDeferred: true };
+    }
     if (pendingThumbnail) {
       await this.youtubeAPI.setThumbnail(videoId, pendingThumbnail.blob);
       // Keep showing the uploaded image: YouTube's CDN lags behind the API.
       pendingThumbnail.pending = false;
       this.refreshThumbnail(videoId);
     }
+    return { thumbnailDeferred: false };
+  }
+
+  // Keep every unsaved change — form edits included — and the pending
+  // thumbnails in IndexedDB after a save was cut short by the quota or the
+  // thumbnail limit, and show a lasting notice of when to retry. Offered back
+  // by offerUnsavedChanges on the next load.
+  private async keepUnsavedChanges(reason: unsavedChanges.InterruptionReason, progress: { saved: number; total: number }): Promise<void> {
+    const ids = [...this.state.changedVideos];
+    const records = ids.map(id => this.desiredRecord(id)).filter((record): record is Record<string, unknown> => !!record);
+    const thumbnails = new Map<string, Blob>();
+    for (const id of ids) {
+      const preview = this.thumbnailPreviews.get(id);
+      if (preview?.pending) {
+        thumbnails.set(id, preview.blob);
+      }
+    }
+    const kept = await unsavedChanges.saveUnsavedChanges(records, thumbnails, reason);
+
+    const language = rendererI18n.getCurrentLanguage();
+    const message = reason === 'quota'
+      ? rendererI18n.t('notice.quotaExhausted', {
+        saved: progress.saved,
+        total: progress.total,
+        remaining: ids.length,
+        resetTime: formatDateTime(nextQuotaReset().toISOString(), language)
+      })
+      : rendererI18n.t('notice.thumbnailLimit', { count: thumbnails.size });
+    showNotice(message + ' ' + rendererI18n.t(kept ? 'notice.kept' : 'notice.keepFailed'));
+  }
+
+  // Backup-format record of what the user wants this video to become: the
+  // card's form as a save would send it (the record itself when unrendered).
+  private desiredRecord(videoId: string): Record<string, unknown> | undefined {
+    const video = this.getVideo(videoId);
+    if (!video) {
+      return undefined;
+    }
+    const { updates } = collectVideoUpdates(videoId, video, this.originalVideosState.get(videoId) ?? video);
+    return backup.filterVideoDataForBackup([{ ...structuredClone(video), ...updates }])[0];
+  }
+
+  // After a load, offer the changes keepUnsavedChanges stored, if any belong
+  // to the loaded videos.
+  private async offerUnsavedChanges(): Promise<void> {
+    const stored = await unsavedChanges.loadUnsavedChanges();
+    if (!stored) {
+      return;
+    }
+    const ids = new Set([...stored.snapshot.records.map(record => record.id), ...stored.thumbnails.keys()]);
+    const count = [...ids].filter(id => typeof id === 'string' && this.videoIndex.has(id)).length;
+    if (count === 0) {
+      return;
+    }
+    const date = formatDateTime(new Date(stored.snapshot.savedAt).toISOString(), rendererI18n.getCurrentLanguage());
+    showNotice(rendererI18n.t('notice.unsavedChangesFound', { count, date }), [
+      { label: rendererI18n.t('notice.restore'), onClick: () => void this.restoreUnsavedChanges(stored) },
+      {
+        label: rendererI18n.t('notice.discard'),
+        onClick: () => {
+          hideNotice();
+          void unsavedChanges.clearUnsavedChanges();
+        }
+      }
+    ]);
+  }
+
+  // Re-apply kept changes on top of the freshly loaded videos, through the same
+  // baseline-merging sanitizer as a backup import; only videos that still
+  // differ from YouTube are marked. The store is cleared as they get saved.
+  private async restoreUnsavedChanges(stored: { snapshot: unsavedChanges.UnsavedSnapshot; thumbnails: Map<string, Blob> }): Promise<void> {
+    hideNotice();
+    for (const record of backup.sanitizeImportedVideos(stored.snapshot.records, this.originalVideosState)) {
+      const video = this.getVideo(record.id);
+      const baseline = this.originalVideosState.get(record.id);
+      if (!video || !baseline) continue;
+      Object.assign(video, record);
+      if (this.videoDiffersFromBaseline(video, baseline)) {
+        this.state.changedVideos.add(record.id);
+      }
+    }
+    for (const [videoId, blob] of stored.thumbnails) {
+      if (this.videoIndex.has(videoId)) {
+        this.setThumbnailPreview(videoId, blob, true);
+        this.state.changedVideos.add(videoId);
+      }
+    }
+
+    await this.renderVideos(true);
+    this.updateSaveAllButton();
+    showStatus(rendererI18n.t('status.unsavedChangesRestored', { count: this.state.changedVideos.size }), 'success');
   }
 
   // Whether anything besides a pending thumbnail differs from the baseline:
@@ -1480,7 +1622,7 @@ class YouTubeBatchManager {
     });
 
     if (!result.success) {
-      throw new Error(result.error || rendererI18n.t('status.failedToUpdateVideo'));
+      throw new YouTubeApiError(result.error || rendererI18n.t('status.failedToUpdateVideo'), result.reason);
     }
 
     Object.assign(video, updates);
