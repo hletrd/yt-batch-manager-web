@@ -204,6 +204,16 @@
     "restore": "Restore",
     "discard": "Discard",
     "dismiss": "Dismiss",
-    "kept": "The unsaved changes are kept in this browser: you can close this tab and restore them later."
+    "kept": "The unsaved changes are kept in this browser: you can close this tab and restore them later.",
+    "batchResult": "Fully saved: {saved} of {total} videos.",
+    "notAttempted": "Not attempted: {count}",
+    "stoppedRepeating": "The first {count} attempts all failed for the same reason, so the rest were not sent: every API request uses quota, even a failed one.",
+    "failureReasons": "Errors: {reasons}",
+    "thumbnailForbidden": "Custom thumbnails need a verified YouTube channel (youtube.com/verify).",
+    "stepThumbnail": "thumbnail",
+    "stepMetadata": "details",
+    "detailsOnly": "Details saved, but the thumbnail is not uploaded yet (still pending): {count}",
+    "thumbnailPending": "Thumbnail not uploaded (still pending): {count}",
+    "nothingSaved": "Failed, nothing saved: {count}"
   }
 }

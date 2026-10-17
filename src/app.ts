@@ -23,9 +23,76 @@ import { collectVideoUpdates, hasCurrentChanges } from './video-form.js';
 // resets (midnight Pacific Time), and the separate per-channel limit on
 // thumbnail uploads (rolling 24 hours).
 const QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded']);
-const isQuotaError = (error: unknown): boolean => error instanceof YouTubeApiError && QUOTA_REASONS.has(error.reason ?? '');
-const isThumbnailLimitError = (error: unknown): boolean => error instanceof YouTubeApiError && error.reason === 'uploadRateLimitExceeded';
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : 'Unknown error';
+
+type SaveStep = 'metadata' | 'thumbnail';
+
+// A save that failed at one step; `cause` is the underlying (API) error.
+// `metadataSaved`: videos.update went through before the thumbnail upload
+// failed, so the video is partly saved.
+class SaveStepError extends Error {
+  constructor(readonly step: SaveStep, readonly metadataSaved: boolean, cause: unknown) {
+    super(errorMessage(cause), { cause });
+    this.name = 'SaveStepError';
+  }
+}
+
+const rootCause = (error: unknown): unknown => error instanceof SaveStepError ? error.cause : error;
+const apiReason = (error: unknown): string | undefined => {
+  const cause = rootCause(error);
+  return cause instanceof YouTubeApiError ? cause.reason : undefined;
+};
+const isQuotaError = (error: unknown): boolean => QUOTA_REASONS.has(apiReason(error) ?? '');
+const isThumbnailLimitError = (error: unknown): boolean => apiReason(error) === 'uploadRateLimitExceeded';
+
+// When the first attempts of a step in a batch all fail for one reason, that
+// reason applies to every video (e.g. a channel that may not set custom
+// thumbnails, or a permission problem): the remaining requests would fail the
+// same way, and every API request uses quota, even a failed one. Any success,
+// or a second reason, shows the failures are per-video and keeps going.
+const SYSTEMATIC_FAILURE_PROBE = 3;
+
+class FailureProbe {
+  private readonly steps = new Map<SaveStep, { reason?: string; failures: number; settled: boolean }>();
+
+  private state(step: SaveStep) {
+    let state = this.steps.get(step);
+    if (!state) {
+      state = { failures: 0, settled: false };
+      this.steps.set(step, state);
+    }
+    return state;
+  }
+
+  succeeded(step: SaveStep): void {
+    this.state(step).settled = true;
+  }
+
+  // Whether the step should stop for the rest of the batch.
+  failed(step: SaveStep, reason: string): boolean {
+    const state = this.state(step);
+    if (state.settled) return false;
+    if (state.reason !== undefined && state.reason !== reason) {
+      state.settled = true;
+      return false;
+    }
+    state.reason = reason;
+    state.failures++;
+    if (state.failures >= SYSTEMATIC_FAILURE_PROBE) {
+      state.settled = true;
+      return true;
+    }
+    return false;
+  }
+}
+
+interface SaveOutcome {
+  metadataSaved: boolean;
+  thumbnailUploaded: boolean;
+  // Saved, but the pending thumbnail was held back (skipThumbnail), so the
+  // video stays changed.
+  thumbnailDeferred: boolean;
+}
 
 interface AppState {
   changedVideos: Set<string>;
@@ -717,7 +784,20 @@ class YouTubeBatchManager {
     // stops; once the thumbnail-upload limit is hit, the rest of the batch
     // saves metadata only. Either way the leftovers are kept for later.
     let quotaExhausted = false;
-    let thumbnailsBlocked = false;
+    let thumbnailLimitHit = false;
+    // Set when FailureProbe stops a step: the failure label that stopped it.
+    let metadataStoppedBy: string | undefined;
+    let thumbnailsStoppedBy: string | undefined;
+    const probe = new FailureProbe();
+    // Failure label (reason + step) -> count and one full message.
+    const failures = new Map<string, { count: number; example: string }>();
+    // Per-video outcomes besides a full save, for the summary: details saved
+    // but the thumbnail not (failed or held back), only a thumbnail held
+    // back, or nothing saved.
+    let detailsOnlyCount = 0;
+    let thumbnailPendingCount = 0;
+    let nothingSavedCount = 0;
+    let thumbnailForbidden = false;
 
     showLoadingOverlay(
       rendererI18n.t('status.savingBatch', { current: 1, total: changedVideosArray.length }),
@@ -749,22 +829,49 @@ class YouTubeBatchManager {
       // saveVideoFromCard reports failure by its result, not by throwing (a
       // try/catch here used to count every failed save as a success).
       attemptedIds.push(videoId);
-      const { error, thumbnailDeferred } = await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailsBlocked });
+      const { error, thumbnailDeferred, metadataSaved, thumbnailUploaded } =
+        await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailLimitHit || thumbnailsStoppedBy !== undefined });
       processedCount++;
+      if (metadataSaved) probe.succeeded('metadata');
+      if (thumbnailUploaded) probe.succeeded('thumbnail');
       if (error === undefined) {
         // A deferred thumbnail means the metadata was saved but the video
         // stays changed until its thumbnail is uploaded.
         if (!thumbnailDeferred) {
           successCount++;
+        } else if (metadataSaved) {
+          detailsOnlyCount++;
+        } else {
+          thumbnailPendingCount++;
         }
       } else if (isQuotaError(error)) {
         quotaExhausted = true;
         break;
       } else if (isThumbnailLimitError(error)) {
-        thumbnailsBlocked = true;
+        thumbnailLimitHit = true;
       } else {
         errorCount++;
         errors.push(`Video ${videoId}: ${errorMessage(error)}`);
+        const step: SaveStep = error instanceof SaveStepError ? error.step : 'metadata';
+        if (error instanceof SaveStepError && error.metadataSaved) {
+          detailsOnlyCount++;
+        } else {
+          nothingSavedCount++;
+        }
+        const reason = apiReason(error) ?? errorMessage(error);
+        thumbnailForbidden ||= step === 'thumbnail' && reason === 'forbidden';
+        const label = `${reason} (${rendererI18n.t(step === 'thumbnail' ? 'notice.stepThumbnail' : 'notice.stepMetadata')})`;
+        const entry = failures.get(label) ?? { count: 0, example: errorMessage(error) };
+        entry.count++;
+        failures.set(label, entry);
+        if (probe.failed(step, reason)) {
+          if (step === 'thumbnail') {
+            thumbnailsStoppedBy = label;
+          } else {
+            metadataStoppedBy = label;
+            break;
+          }
+        }
       }
     }
 
@@ -776,32 +883,49 @@ class YouTubeBatchManager {
     this.updateVideoCache(attemptedIds);
     void unsavedChanges.forgetUnsavedChanges(attemptedIds.filter(id => !this.state.changedVideos.has(id)));
 
-    // Surface the first failure's reason (e.g. an unverified channel for
-    // thumbnails) so a partial failure is actionable.
-    const firstError = errors.length > 0 ? ` — ${errors[0]}` : '';
-    if (quotaExhausted || thumbnailsBlocked) {
+    if (quotaExhausted || thumbnailLimitHit) {
       await this.keepUnsavedChanges(quotaExhausted ? 'quota' : 'thumbnailLimit', { saved: successCount, total: changedVideosArray.length });
-    } else if (successCount > 0) {
-      showStatus(
-        rendererI18n.t('status.batchSaveComplete', {
-          successful: successCount,
-          failed: errorCount,
-          total: processedCount
-        }) + firstError,
-        errorCount === 0 ? 'success' : 'info'
-      );
-      if (this.state.changedVideos.size === 0) {
+    } else {
+      if (successCount > 0) {
+        showStatus(
+          rendererI18n.t('status.batchSaveComplete', {
+            successful: successCount,
+            failed: errorCount,
+            total: processedCount
+          }),
+          errorCount === 0 && detailsOnlyCount + thumbnailPendingCount === 0 ? 'success' : 'info'
+        );
+      } else {
+        showStatus(rendererI18n.t('status.batchSaveFailed', { failed: errorCount }), 'error');
+      }
+
+      // The toast is gone in 3s; anything short of a full success gets a
+      // lasting, itemized notice so it is clear what did and did not reach
+      // YouTube.
+      const notAttempted = changedVideosArray.length - processedCount;
+      if (successCount < changedVideosArray.length) {
+        const t = rendererI18n.t.bind(rendererI18n);
+        const lines = [t('notice.batchResult', { saved: successCount, total: changedVideosArray.length })];
+        if (detailsOnlyCount > 0) lines.push(t('notice.detailsOnly', { count: detailsOnlyCount }));
+        if (thumbnailPendingCount > 0) lines.push(t('notice.thumbnailPending', { count: thumbnailPendingCount }));
+        if (nothingSavedCount > 0) lines.push(t('notice.nothingSaved', { count: nothingSavedCount }));
+        if (notAttempted > 0) lines.push(t('notice.notAttempted', { count: notAttempted }));
+        if (metadataStoppedBy || thumbnailsStoppedBy) lines.push(t('notice.stoppedRepeating', { count: SYSTEMATIC_FAILURE_PROBE }));
+        if (failures.size > 0) {
+          const reasons = [...failures].map(([label, { count }]) => `${label} ×${count}`).join(', ');
+          lines.push(t('notice.failureReasons', { reasons }) + ` — ${[...failures.values()][0].example}`);
+        }
+        if (thumbnailForbidden) {
+          lines.push(t('notice.thumbnailForbidden'));
+        }
+        showNotice(lines.join('\n'));
+      } else if (this.state.changedVideos.size === 0) {
         hideNotice();
       }
-    } else {
-      showStatus(
-        rendererI18n.t('status.batchSaveFailed', { failed: errorCount }) + firstError,
-        'error'
-      );
     }
 
-    if (errors.length > 0 && errors.length <= 5) {
-      console.error('Batch save errors:', errors);
+    if (errors.length > 0) {
+      console.warn('Batch save errors:', errors);
     }
 
     this.updateSaveAllButton();
@@ -1448,7 +1572,7 @@ class YouTubeBatchManager {
   // throws: a failure is returned as `error`. `thumbnailDeferred`: saved, but
   // its pending thumbnail was held back (options.skipThumbnail), so the video
   // stays changed.
-  private async saveVideoFromCard(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<{ error?: unknown; thumbnailDeferred?: boolean }> {
+  private async saveVideoFromCard(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<Partial<SaveOutcome> & { error?: unknown }> {
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
     if (updateBtn) {
@@ -1457,8 +1581,8 @@ class YouTubeBatchManager {
     }
 
     try {
-      const { thumbnailDeferred } = await this.saveVideo(videoId, options);
-      if (thumbnailDeferred) {
+      const outcome = await this.saveVideo(videoId, options);
+      if (outcome.thumbnailDeferred) {
         this.checkForChanges(videoId);
       } else {
         this.unmarkChanged(videoId);
@@ -1466,7 +1590,7 @@ class YouTubeBatchManager {
           updateBtn.style.display = 'none';
         }
       }
-      return { thumbnailDeferred };
+      return outcome;
     } catch (error) {
       this.checkForChanges(videoId);
       return { error };
@@ -1480,30 +1604,40 @@ class YouTubeBatchManager {
 
   // Send one video's edits to YouTube and adopt them as the new baseline.
   // Throws on failure (a YouTubeApiError carries YouTube's reason).
-  private async saveVideo(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<{ thumbnailDeferred: boolean }> {
+  private async saveVideo(videoId: string, options: { skipThumbnail?: boolean } = {}): Promise<SaveOutcome> {
     const video = this.getVideo(videoId);
     if (!video) {
-      throw new Error('Video not found');
+      throw new SaveStepError('metadata', false, new Error('Video not found'));
     }
 
     // A thumbnail-only change skips videos.update: there is nothing else to
     // send, and it costs 50 quota units.
     const thumbnail = this.thumbnailPreviews.get(videoId);
     const pendingThumbnail = thumbnail?.pending ? thumbnail : undefined;
+    let metadataSaved = false;
     if (!pendingThumbnail || this.hasMetadataChanges(videoId, video)) {
-      await this.saveVideoMetadata(videoId, video);
+      try {
+        await this.saveVideoMetadata(videoId, video);
+      } catch (error) {
+        throw new SaveStepError('metadata', false, error);
+      }
+      metadataSaved = true;
     }
 
     if (pendingThumbnail && options.skipThumbnail) {
-      return { thumbnailDeferred: true };
+      return { metadataSaved, thumbnailUploaded: false, thumbnailDeferred: true };
     }
     if (pendingThumbnail) {
-      await this.youtubeAPI.setThumbnail(videoId, pendingThumbnail.blob);
+      try {
+        await this.youtubeAPI.setThumbnail(videoId, pendingThumbnail.blob);
+      } catch (error) {
+        throw new SaveStepError('thumbnail', metadataSaved, error);
+      }
       // Keep showing the uploaded image: YouTube's CDN lags behind the API.
       pendingThumbnail.pending = false;
       this.refreshThumbnail(videoId);
     }
-    return { thumbnailDeferred: false };
+    return { metadataSaved, thumbnailUploaded: !!pendingThumbnail, thumbnailDeferred: false };
   }
 
   // Keep every unsaved change — form edits included — and the pending

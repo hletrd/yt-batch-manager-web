@@ -44,7 +44,9 @@ const videoItem = (id, opts) => ({
 const fixtures = [
   videoItem(VID_S, { title: 'Scheduled video', privacy: 'private', publishAt: SCHEDULE, recordingDate: '2023-05-10T00:00:00.000Z' }),
   videoItem(VID_P, { title: 'Public video', privacy: 'public', tags: ['keep', 'these'] }),
-  videoItem(VID_Q, { title: TRICKY_TITLE, description: TRICKY_DESCRIPTION, privacy: 'public' })
+  videoItem(VID_Q, { title: TRICKY_TITLE, description: TRICKY_DESCRIPTION, privacy: 'public' }),
+  // Three more, so a batch can be stopped early with videos left over.
+  ...['RRRRRRRRRR1', 'RRRRRRRRRR2', 'RRRRRRRRRR3'].map((id, i) => videoItem(id, { title: 'Extra ' + i, privacy: 'public' }))
 ];
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -88,6 +90,11 @@ let failPutFor = null;
 let putsAllowed = Infinity;
 let thumbnailLimit = false;
 let putAttempts = 0;
+// Systematic failures: every PUT rejected with `putFailReason`, every
+// thumbnails.set with 403 forbidden (a channel that may not set thumbnails).
+let putFailReason = null;
+let thumbnailForbidden = false;
+let thumbnailAttempts = 0;
 // Reloads below happen with unsaved changes; leave the page like a user would.
 page.on('dialog', dialog => dialog.accept());
 
@@ -107,6 +114,9 @@ await page.route('https://www.googleapis.com/**', async r => {
   if (u.pathname.endsWith('/videos') && r.request().method() === 'PUT') {
     const body = JSON.parse(r.request().postData() || '{}');
     putAttempts++;
+    if (putFailReason) {
+      return r.fulfill({ status: 400, json: { error: { errors: [{ reason: putFailReason }], message: 'Invalid tags.' } } });
+    }
     if (puts.length >= putsAllowed) {
       return r.fulfill({ status: 403, json: { error: { errors: [{ reason: 'quotaExceeded' }], message: 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.' } } });
     }
@@ -118,6 +128,10 @@ await page.route('https://www.googleapis.com/**', async r => {
     return r.fulfill({ json: {} });
   }
   if (u.pathname.endsWith('/thumbnails/set')) {
+    thumbnailAttempts++;
+    if (thumbnailForbidden) {
+      return r.fulfill({ status: 403, json: { error: { errors: [{ reason: 'forbidden' }], message: 'The thumbnail can\u2019t be set for the specified video.' } } });
+    }
     if (thumbnailLimit) {
       return r.fulfill({ status: 403, json: { error: { errors: [{ reason: 'uploadRateLimitExceeded' }], message: 'The channel has uploaded too many thumbnails recently.' } } });
     }
@@ -353,7 +367,9 @@ await page.fill(`#title-${VID_S}`, 'Batch S');
 failPutFor = VID_S;
 await saveAll();
 const batchMsg = await statusText();
-ok('B1. failed save counted as failed', /1 successful, 1 failed/.test(batchMsg) && batchMsg.includes('Request metadata is invalid'), batchMsg);
+ok('B1. failed save counted as failed', /1 successful, 1 failed/.test(batchMsg), batchMsg);
+const batchNotice = await page.evaluate(() => document.getElementById('notice-banner').textContent);
+ok('B1b. lasting notice itemizes the failure and its reason', /Fully saved: 1 of 2/.test(batchNotice) && /Failed, nothing saved: 1/.test(batchNotice) && batchNotice.includes('Request metadata is invalid'), batchNotice);
 ok('B2. failed video stays marked changed', JSON.stringify(await changedIds()) === JSON.stringify([VID_S]), JSON.stringify(await changedIds()));
 
 // ---- Thumbnails via ZIP ----
@@ -426,7 +442,7 @@ const cachedTitle = (id) => page.evaluate(i => JSON.parse(localStorage.getItem('
 
 await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
 await page.click('#refresh-videos-btn');
-await page.waitForFunction(() => /Loaded 3/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+await page.waitForFunction(() => /Loaded 6/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
 await page.fill(`#title-${VID_S}`, 'Quota S');
 await page.fill(`#title-${VID_P}`, 'Quota P');
 await page.fill(`#title-${VID_Q}`, 'Quota Q');
@@ -504,6 +520,46 @@ writeFileSync(join(dirV, pathQ), image('reencoded'));
 await importZip(zipFolder(dirV));
 ok('V3. without a hash, a re-encoded copy is matched against YouTube', await page.locator(`#video-${VID_Q} .thumbnail-pending-badge`).count() === 0, await statusText());
 ok('V4. nothing was uploaded by these imports', thumbnailUploads.length === uploadsBeforeV);
+
+// ---- The same failure on every video: stop early, report precisely ----
+const noticeNow = () => page.evaluate(() => { const n = document.getElementById('notice-banner'); return n.hidden ? '' : n.textContent; });
+const clearNotice = () => page.evaluate(() => { const n = document.getElementById('notice-banner'); n.hidden = true; n.replaceChildren(); });
+await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
+await page.click('#refresh-videos-btn');
+await page.waitForFunction(() => /Loaded 6/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+const allIds = await page.evaluate(() => [...document.querySelectorAll('.video-item')].map(e => e.dataset.videoId));
+for (const id of allIds) {
+  await page.fill(`#title-${id}`, 'Retitled ' + id);
+}
+await clearNotice();
+putFailReason = 'invalidTags';
+const putAttemptsR = putAttempts;
+await saveAll();
+ok('R1. a failure every video shares stops after 3 requests', putAttempts - putAttemptsR === 3 && (await changedIds()).length === 6, `requests=${putAttempts - putAttemptsR}`);
+ok('R1b. notice: nothing saved, rest not attempted, reason', /Fully saved: 0 of 6/.test(await noticeNow()) && /Not attempted: 3/.test(await noticeNow()) && /invalidTags/.test(await noticeNow()), await noticeNow());
+putFailReason = null;
+
+// Details and thumbnails changed; the channel may not set thumbnails.
+const zipR = await exportZip();
+const dirR = unzipTo(zipR);
+const recordsR = JSON.parse(readFileSync(join(dirR, 'videos.json'), 'utf8'));
+for (const record of recordsR) {
+  record.title = 'Zip ' + record.id;
+  writeFileSync(join(dirR, record.thumbnail), image('edited'));
+}
+writeFileSync(join(dirR, 'videos.json'), JSON.stringify(recordsR));
+await importZip(zipFolder(dirR));
+await clearNotice();
+thumbnailForbidden = true;
+const thumbAttemptsR = thumbnailAttempts;
+const putsR = await saveAll();
+ok('R2. details all saved, thumbnail uploads stop after 3', putsR.length === 6 && thumbnailAttempts - thumbAttemptsR === 3, `puts=${putsR.length} thumbnails=${thumbnailAttempts - thumbAttemptsR}`);
+ok('R2b. notice says details saved, thumbnails pending, verify channel', /Details saved, but the thumbnail is not uploaded yet \(still pending\): 6/.test(await noticeNow()) && /verified YouTube channel/.test(await noticeNow()), await noticeNow());
+ok('R2c. videos stay marked for their pending thumbnails', (await changedIds()).length === 6 && await page.locator('.thumbnail-pending-badge').count() === 6);
+const thumbAttemptsR3 = thumbnailAttempts;
+await saveAll();
+ok('R3. retrying sends 3 thumbnail requests and no details again', thumbnailAttempts - thumbAttemptsR3 === 3, `thumbnails=${thumbnailAttempts - thumbAttemptsR3}`);
+thumbnailForbidden = false;
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 
