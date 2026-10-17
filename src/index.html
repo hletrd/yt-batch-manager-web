@@ -897,10 +897,14 @@
       display: none;
     }
 
+    /* keep-all: break Korean text between words, not inside them;
+       overflow-wrap still breaks an overlong token (an id, a URL). */
     .notice-text {
       flex: 1;
       min-width: 0;
       white-space: pre-line;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
     }
 
     .notice-actions {
@@ -950,6 +954,8 @@
       transform: translateX(100%);
       transition: all 0.3s ease;
       letter-spacing: 0.2px;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
     }
 
     .status-message.show {

@@ -913,7 +913,7 @@ class YouTubeBatchManager {
         if (metadataStoppedBy || thumbnailsStoppedBy) lines.push(t('notice.stoppedRepeating', { count: SYSTEMATIC_FAILURE_PROBE }));
         if (failures.size > 0) {
           const reasons = [...failures].map(([label, { count }]) => `${label} ×${count}`).join(', ');
-          lines.push(t('notice.failureReasons', { reasons }) + ` — ${[...failures.values()][0].example}`);
+          lines.push(t('notice.failureReasons', { reasons }), [...failures.values()][0].example);
         }
         if (thumbnailForbidden) {
           lines.push(t('notice.thumbnailForbidden'));
@@ -973,7 +973,7 @@ class YouTubeBatchManager {
       this.saveBlobAs(blob, 'zip');
       const message = rendererI18n.t('status.videosExportedZip', { count: videos.length, thumbnails: exported });
       if (failed > 0) {
-        showStatus(message + ' · ' + rendererI18n.t('status.thumbnailsNotExported', { count: failed }), 'info');
+        showStatus(message + '. ' + rendererI18n.t('status.thumbnailsNotExported', { count: failed }), 'info');
       } else {
         showStatus(message, 'success');
       }
@@ -1113,7 +1113,7 @@ class YouTubeBatchManager {
       rendererI18n.t('status.videosImported', { count: videoData.length }),
       pendingThumbnails > 0 ? rendererI18n.t('status.thumbnailsPending', { count: pendingThumbnails }) : '',
       skipped > 0 ? rendererI18n.t('status.thumbnailsSkipped', { count: skipped }) : ''
-    ].filter(Boolean).join(' · ');
+    ].filter(Boolean).join('. ');
     showStatus(message, skipped > 0 ? 'info' : 'success');
   }
 
