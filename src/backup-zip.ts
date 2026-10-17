@@ -9,8 +9,11 @@
 //   README.txt              how to use it, in the UI language
 //
 // On import a thumbnail counts as changed — and is uploaded on save — only
-// when its bytes no longer match thumbnail_sha256, so re-importing an
-// untouched export uploads nothing (each thumbnails.set costs ~50 quota units
+// when its bytes no longer match thumbnail_sha256 *and* it does not look like
+// the thumbnail YouTube shows now (the caller's isUnchanged, a visual
+// comparison: YouTube re-encodes every thumbnail, so the user's own copy of an
+// unchanged image never matches byte for byte). Re-importing an untouched
+// export therefore uploads nothing (each thumbnails.set costs ~50 quota units
 // of the 10,000/day). No DOM, no app state.
 
 import { VIDEO_ID_PATTERN } from './backup.js';
@@ -59,13 +62,28 @@ function exportThumbnailUrl(video: VideoData): string | undefined {
 
 // i.ytimg.com serves thumbnails with Access-Control-Allow-Origin: *, so they
 // can be read cross-origin (connect-src allows *.ytimg.com).
-async function fetchImage(url: string): Promise<Uint8Array<ArrayBuffer> | null> {
+async function fetchImage(url: string, init?: RequestInit): Promise<Uint8Array<ArrayBuffer> | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, init);
     return response.ok ? new Uint8Array(await response.arrayBuffer()) : null;
   } catch {
     return null;
   }
+}
+
+// YouTube's current thumbnail of a video at a size fit for a visual
+// comparison (see image-compare.ts): maxres, else the 640x480 standard size.
+// Smaller sizes are too blurry to rule out a small edit, so without these
+// there is nothing to compare against (null), and the image counts as changed.
+export async function fetchComparableThumbnail(video: VideoData): Promise<Blob | null> {
+  const url = video.thumbnails?.maxres?.url || video.thumbnails?.standard?.url;
+  if (!url) {
+    return null;
+  }
+  // Revalidate: a just-replaced thumbnail keeps its URL.
+  const data = await fetchImage(url, { cache: 'no-cache' });
+  const type = data ? sniffImageType(data) : null;
+  return data && type ? new Blob([data], { type }) : null;
 }
 
 // A thumbnail the app already holds locally: one imported but not yet
@@ -174,7 +192,16 @@ function thumbnailCandidates(entries: Map<string, ZipEntry>, baseDir: string, vi
   return [...found];
 }
 
-export async function readBackupZip(data: Uint8Array<ArrayBuffer>): Promise<BackupZipContents> {
+export interface ReadBackupZipOptions {
+  // Whether a thumbnail whose bytes differ from the export still shows the
+  // same image as YouTube's current one (then it is not uploaded).
+  isUnchanged?(videoId: string, image: Blob): Promise<boolean>;
+  onProgress?(done: number, total: number): void;
+}
+
+const COMPARE_CONCURRENCY = 4;
+
+export async function readBackupZip(data: Uint8Array<ArrayBuffer>, options: ReadBackupZipOptions = {}): Promise<BackupZipContents> {
   const entries = readZip(data).filter(entry => !isJunkEntry(entry.name));
   const jsonEntry = findVideosJson(entries);
   if (!jsonEntry) {
@@ -187,31 +214,50 @@ export async function readBackupZip(data: Uint8Array<ArrayBuffer>): Promise<Back
   const thumbnails = new Map<string, Blob>();
   let skipped = 0;
 
+  const work: Array<{ id: string; exportedHash: unknown; candidates: ZipEntry[] }> = [];
   for (const record of Array.isArray(records) ? records : []) {
     if (!record || typeof record !== 'object') continue;
     const { id, thumbnail, thumbnail_sha256: exportedHash } = record as Record<string, unknown>;
     if (typeof id !== 'string' || !VIDEO_ID_PATTERN.test(id)) continue;
-
-    // The first candidate that differs from the exported image is the
-    // replacement; if every candidate matches, the thumbnail is unchanged.
-    for (const entry of thumbnailCandidates(byName, baseDir, id, thumbnail)) {
-      if (entry.size > MAX_THUMBNAIL_BYTES) {
-        skipped++;
-        break;
-      }
-      const bytes = await entry.read();
-      if (typeof exportedHash === 'string' && exportedHash.toLowerCase() === await sha256Hex(bytes)) {
-        continue;
-      }
-      const type = sniffImageType(bytes);
-      if (type) {
-        thumbnails.set(id, new Blob([bytes], { type }));
-      } else {
-        skipped++;
-      }
-      break;
+    const candidates = thumbnailCandidates(byName, baseDir, id, thumbnail);
+    if (candidates.length > 0) {
+      work.push({ id, exportedHash, candidates });
     }
   }
+
+  // The first candidate that is neither byte-identical to the exported image
+  // nor looks like YouTube's current one is the replacement; if every
+  // candidate matches, the thumbnail is unchanged.
+  const total = work.length;
+  let done = 0;
+  const worker = async (): Promise<void> => {
+    for (let item = work.shift(); item; item = work.shift()) {
+      const { id, exportedHash, candidates } = item;
+      for (const entry of candidates) {
+        if (entry.size > MAX_THUMBNAIL_BYTES) {
+          skipped++;
+          break;
+        }
+        const bytes = await entry.read();
+        if (typeof exportedHash === 'string' && exportedHash.toLowerCase() === await sha256Hex(bytes)) {
+          continue;
+        }
+        const type = sniffImageType(bytes);
+        if (!type) {
+          skipped++;
+          break;
+        }
+        const image = new Blob([bytes], { type });
+        if (await options.isUnchanged?.(id, image)) {
+          continue;
+        }
+        thumbnails.set(id, image);
+        break;
+      }
+      options.onProgress?.(++done, total);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(COMPARE_CONCURRENCY, total) }, worker));
 
   return { records, thumbnails, skipped };
 }

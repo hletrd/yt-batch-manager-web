@@ -9,6 +9,7 @@ import { hideLoadingOverlay, hideNotice, renderNoCredentials, showAuthentication
 import * as backup from './backup.js';
 import * as backupZip from './backup-zip.js';
 import { isZip } from './utils/zip.js';
+import { looksLikeSameThumbnail } from './image-compare.js';
 import * as unsavedChanges from './unsaved-changes.js';
 import * as theme from './theme.js';
 import { FALLBACK_I18N_LANGUAGES, FALLBACK_VIDEO_CATEGORIES } from './fallback-data.js';
@@ -892,7 +893,13 @@ class YouTubeBatchManager {
           // Detect a ZIP by content, not extension.
           const bytes = new Uint8Array(await file.arrayBuffer());
           if (isZip(bytes)) {
-            const contents = await backupZip.readBackupZip(bytes);
+            const contents = await backupZip.readBackupZip(bytes, {
+              isUnchanged: (videoId, image) => this.thumbnailMatchesCurrent(videoId, image),
+              onProgress: (done, total) => showLoadingOverlay(
+                rendererI18n.t('app.loading'),
+                rendererI18n.t('loading.comparingThumbnails', { current: done, total })
+              )
+            });
             if (contents.records === undefined) {
               showStatus(rendererI18n.t('status.zipMissingJson'), 'error');
               return;
@@ -1217,6 +1224,19 @@ class YouTubeBatchManager {
         btn.disabled = false;
       }
     }
+  }
+
+  // Whether `image` shows the thumbnail YouTube has now: the one uploaded this
+  // session if any (YouTube's CDN lags behind uploads), else the live one.
+  // Compared visually, since YouTube re-encodes every thumbnail; fetching it
+  // from the CDN uses no API quota.
+  private async thumbnailMatchesCurrent(videoId: string, image: Blob): Promise<boolean> {
+    const uploaded = this.thumbnailPreviews.get(videoId);
+    const video = this.originalVideosState.get(videoId) ?? this.getVideo(videoId);
+    const reference = uploaded && !uploaded.pending
+      ? uploaded.blob
+      : video ? await backupZip.fetchComparableThumbnail(video) : null;
+    return reference ? looksLikeSameThumbnail(image, reference) : false;
   }
 
   discardPendingThumbnail(videoId: string): void {

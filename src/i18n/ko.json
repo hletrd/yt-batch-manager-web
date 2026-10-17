@@ -46,7 +46,8 @@
     "loadingFromYouTubeSubtext": "동영상이 많은 채널의 경우 시간이 걸릴 수 있습니다",
     "importingData": "동영상 데이터 가져오는 중...",
     "preparingZip": "ZIP 파일 준비 중…",
-    "downloadingThumbnails": "썸네일 내려받는 중 ({current}/{total})"
+    "downloadingThumbnails": "썸네일 내려받는 중 ({current}/{total})",
+    "comparingThumbnails": "YouTube 썸네일과 비교하는 중 ({current}/{total})"
   },
   "find": {
     "placeholder": "동영상에서 검색...",
@@ -193,7 +194,7 @@
     "keep": "현재 값 유지"
   },
   "zip": {
-    "readme": "YT Batch Manager 백업\n\nvideos.json   동영상 메타데이터입니다. 원하는 항목을 고친 뒤 \"파일에서 불러오기\"로\n              이 ZIP을 다시 불러와 변경 내용을 확인하고 저장하세요. 지운 항목은\n              YouTube의 현재 값이 그대로 유지됩니다.\nthumbnails/   동영상별 현재 썸네일입니다. 파일 이름은 동영상 ID입니다.\n\n썸네일 교체: thumbnails/ 안의 이미지를 새 JPEG 또는 PNG(50MB 이하)로 덮어쓰세요.\n파일 이름(동영상 ID)은 그대로 두어야 합니다. 내보낸 이미지와 달라진 파일만\n업로드되며, videos.json의 \"thumbnail_sha256\" 값으로 변경 여부를 판단하므로\n이 값은 수정하지 마세요.\n\n맞춤 썸네일은 인증된 YouTube 채널에서만 쓸 수 있고, 썸네일 1개를 올릴 때마다\nYouTube API 일일 할당량 10,000 중 약 50을 사용합니다.\n"
+    "readme": "YT Batch Manager 백업\n\nvideos.json   동영상 메타데이터입니다. 원하는 항목을 고친 뒤 \"파일에서 불러오기\"로\n              이 ZIP을 다시 불러와 변경 내용을 확인하고 저장하세요. 지운 항목은\n              YouTube의 현재 값이 그대로 유지됩니다.\nthumbnails/   동영상별 현재 썸네일입니다. 파일 이름은 동영상 ID입니다.\n\n썸네일 교체: thumbnails/ 안의 이미지를 새 JPEG 또는 PNG(50MB 이하)로 덮어쓰세요.\n파일 이름(동영상 ID)은 그대로 두어야 합니다. 그림이 실제로 바뀐 파일만\n업로드되며, 현재 YouTube 썸네일과 똑같아 보이는 이미지(원본 파일이나 다시 저장한\n사본 등)는 건너뜁니다. videos.json의 \"thumbnail_sha256\" 값은 수정하지 마세요.\n\n맞춤 썸네일은 인증된 YouTube 채널에서만 쓸 수 있고, 썸네일 1개를 올릴 때마다\nYouTube API 일일 할당량 10,000 중 약 50을 사용합니다.\n"
   },
   "notice": {
     "quotaExhausted": "YouTube API 일일 할당량이 소진되어 {total}개 중 {saved}개만 저장했습니다. 나머지 {remaining}개는 할당량이 초기화되는 {resetTime}(태평양 시간 자정) 이후에 '모두 저장'을 다시 눌러 저장하세요.",

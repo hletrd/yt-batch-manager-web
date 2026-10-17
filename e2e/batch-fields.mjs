@@ -48,8 +48,9 @@ const fixtures = [
 ];
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-// A real 16x9 JPEG, used as the "new" thumbnail a user drops into the ZIP.
-const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/wAARCAAJABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwAJCQkJCQkQCQkQFhAQEBYeFhYWFh4mHh4eHh4mLiYmJiYmJi4uLi4uLi4uNzc3Nzc3QEBAQEBISEhISEhISEhI/9sAQwELDAwSERIfEREfSzMqM0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tL/90ABAAB/9oADAMBAAIRAxEAPwDoqKKK4D68/9k=', 'base64');
+// A real 16x9 JPEG (left half black, right half white), used as the "new"
+// thumbnail a user drops into the ZIP; it must look different from PNG.
+const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMABAQEBAQEBgQEBgkGBgYJDAkJCQkMDwwMDAwMDxIPDw8PDw8SEhISEhISEhUVFRUVFRkZGRkZHBwcHBwcHBwcHP/bAEMBBAUFBwcHDAcHDB0UEBQdHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHf/dAAQAAf/aAAwDAQACEQMRAD8A/P8Ar9/q/AGv3+oA/9k=', 'base64');
 const counters = { playlistItems: 0 };
 const puts = [];
 const thumbnailUploads = [];
@@ -93,7 +94,12 @@ page.on('dialog', dialog => dialog.accept());
 await page.route('**/*', r => r.request().url().startsWith(APP) ? r.continue() : r.abort());
 // Thumbnail CDN: serve a 1x1 PNG with the CORS header i.ytimg.com really sends
 // (the ZIP export fetch()es these cross-origin).
-await page.route('https://i.ytimg.com/**', r => r.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }));
+// `ytimgOverride` swaps in a specific image for one video's thumbnails.
+const ytimgOverride = new Map();
+await page.route('https://i.ytimg.com/**', r => {
+  const override = ytimgOverride.get(r.request().url().split('/vi/')[1]?.split('/')[0]);
+  return r.fulfill({ contentType: override ? 'image/jpeg' : 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: override || PNG });
+});
 await page.route(APP + 'credentials.json', r => r.fulfill({ json: { web: { client_id: 'cid', client_secret: 'sec' } } }));
 await page.route('https://www.googleapis.com/**', async r => {
   const u = new URL(r.request().url());
@@ -221,6 +227,38 @@ await page.goto(APP, { waitUntil: 'load' });
 await page.locator(`#video-${VID_S}`).waitFor({ state: 'visible', timeout: 20000 });
 ok('L1. pre-v2 cache discarded (fresh load)', counters.playlistItems === 1, 'playlistItems=' + counters.playlistItems);
 ok('L2. fresh title rendered', await page.locator(`#title-${VID_S}`).inputValue() === 'Scheduled video');
+
+// A synthetic thumbnail: the user's 1920x1080 PNG original, YouTube's 1280x720
+// JPEG re-encode of it, a re-encoded copy, and the original with one digit of
+// its text changed.
+const variants = await page.evaluate(async () => {
+  const draw = (label, width, height) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const c = canvas.getContext('2d');
+    c.scale(width / 1920, height / 1080);
+    const g = c.createLinearGradient(0, 0, 1920, 1080);
+    g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#f97316');
+    c.fillStyle = g; c.fillRect(0, 0, 1920, 1080);
+    c.fillStyle = '#facc15'; c.beginPath(); c.arc(1450, 520, 300, 0, 7); c.fill();
+    c.fillStyle = '#fff'; c.font = 'bold 190px sans-serif'; c.fillText('BIG TITLE', 120, 400);
+    c.font = 'bold 90px sans-serif'; c.fillText(label, 120, 900);
+    return canvas;
+  };
+  const encode = (canvas, type, quality) => new Promise(resolve => canvas.toBlob(async blob => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    resolve(btoa(binary));
+  }, type, quality));
+  return {
+    original: await encode(draw('EP 3', 1920, 1080), 'image/png'),
+    youtube: await encode(draw('EP 3', 1280, 720), 'image/jpeg', 0.8),
+    reencoded: await encode(draw('EP 3', 1920, 1080), 'image/jpeg', 0.9),
+    edited: await encode(draw('EP 4', 1920, 1080), 'image/png')
+  };
+});
+const image = (name) => Buffer.from(variants[name], 'base64');
 
 // ---- The card form holds the exact values (no false "changed") ----
 ok('N1. title with quotes shown in full', await page.locator(`#title-${VID_Q}`).inputValue() === TRICKY_TITLE, await page.locator(`#title-${VID_Q}`).inputValue());
@@ -364,7 +402,10 @@ await importZip(readFileSync(zip2));
 ok('T9b. ...and re-importing it uploads nothing', (await changedIds()).length === 0, JSON.stringify(await changedIds()));
 
 // Pending thumbnail can be discarded; unusable files are skipped and reported.
-await importZip(editedZip);
+// S's JPEG is already uploaded (T6), so re-importing it is no change; a
+// different image is needed for a pending thumbnail.
+writeFileSync(join(dir1, `thumbnails/${VID_S}.png`), image('edited'));
+await importZip(zipFolder(dir1));
 await page.click(`#video-${VID_S} .thumbnail-discard-btn`);
 ok('T10. discarding the pending thumbnail unmarks a thumbnail-only change', !(await changedIds()).includes(VID_S) && await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 0, JSON.stringify(await changedIds()));
 writeFileSync(join(dir1, `thumbnails/${VID_P}.png`), 'not an image');
@@ -437,6 +478,32 @@ thumbnailLimit = false;
 await saveAll();
 const uploadsL = thumbnailUploads.slice(uploadsBeforeLimit);
 ok('L7. kept thumbnail uploaded once the limit clears', uploadsL.length === 1 && uploadsL[0].videoId === VID_S && uploadsL[0].body.equals(JPEG), JSON.stringify(uploadsL.map(u => u.videoId)));
+
+// ---- Re-encoded thumbnails are recognized visually ----
+
+ytimgOverride.set(VID_Q, image('youtube'));
+const uploadsBeforeV = thumbnailUploads.length;
+const zipV = await exportZip();
+const dirV = unzipTo(zipV);
+const recordsV = JSON.parse(readFileSync(join(dirV, 'videos.json'), 'utf8'));
+const pathQ = recordsV.find(v => v.id === VID_Q).thumbnail;
+ok('V0. exported Q thumbnail is YouTube\'s copy', readFileSync(join(dirV, pathQ)).equals(image('youtube')), pathQ);
+
+writeFileSync(join(dirV, pathQ), image('original'));
+await importZip(zipFolder(dirV));
+ok('V1. own original of an unchanged thumbnail is not uploaded', await page.locator(`#video-${VID_Q} .thumbnail-pending-badge`).count() === 0 && !(await changedIds()).includes(VID_Q), (await statusText()) + JSON.stringify(await changedIds()));
+
+writeFileSync(join(dirV, pathQ), image('edited'));
+await importZip(zipFolder(dirV));
+ok('V2. a one-digit text edit is still detected', await page.locator(`#video-${VID_Q} .thumbnail-pending-badge`).count() === 1, await statusText());
+
+// A hand-made ZIP: no thumbnail_sha256 at all, a re-encoded copy of the image.
+recordsV.find(v => v.id === VID_Q).thumbnail_sha256 = null;
+writeFileSync(join(dirV, 'videos.json'), JSON.stringify(recordsV));
+writeFileSync(join(dirV, pathQ), image('reencoded'));
+await importZip(zipFolder(dirV));
+ok('V3. without a hash, a re-encoded copy is matched against YouTube', await page.locator(`#video-${VID_Q} .thumbnail-pending-badge`).count() === 0, await statusText());
+ok('V4. nothing was uploaded by these imports', thumbnailUploads.length === uploadsBeforeV);
 
 ok('Z. zero page/console errors', pageErrors.length === 0, pageErrors.join(' | '));
 
