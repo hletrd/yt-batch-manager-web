@@ -4,7 +4,7 @@
 // the same per-video element ids as before; baselines arrive as parameters.
 
 import type { VideoData } from './types.js';
-import { arraysEqual, parseCoordInput } from './utils/format.js';
+import { arraysEqual, normalizeNewlines, parseCoordInput } from './utils/format.js';
 import { getCurrentTags } from './tags.js';
 
 // Value of a Yes/No select (see generateBooleanOptions). '' ("keep current",
@@ -40,7 +40,7 @@ export function hasCurrentChanges(videoId: string, video: VideoData, original: V
 
   return (
     titleEl?.value !== original.title ||
-    descriptionEl?.value !== original.description ||
+    descriptionEl?.value !== normalizeNewlines(original.description) ||
     privacyEl?.value !== original.privacy_status ||
     categoryEl?.value !== original.category_id ||
     languageEl?.value !== (original.defaultAudioLanguage || '') ||
@@ -115,7 +115,9 @@ export function collectVideoUpdates(videoId: string, video: VideoData, baseline:
 
   const updates: CollectedVideoUpdates = {
     title: titleEl ? titleEl.value : video.title,
-    description: descriptionEl ? descriptionEl.value : video.description,
+    // An untouched textarea differs from the record only by its LF line
+    // breaks; send the record's exact text then.
+    description: descriptionEl && descriptionEl.value !== normalizeNewlines(video.description) ? descriptionEl.value : video.description,
     privacy_status: privacyStatus,
     // No form control; set from YouTube or a backup import. YouTube keeps a
     // schedule only on a private video, so it is dropped (and forgotten after

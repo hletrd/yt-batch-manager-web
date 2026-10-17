@@ -16,13 +16,15 @@ const ok = (name, cond, detail = '') => results.push({ name, pass: !!cond, detai
 
 const VID_S = 'SSSSSSSSSS1'; // private, scheduled to publish
 const VID_P = 'PPPPPPPPPP2'; // public, every status field set
-const VID_Q = 'QQQQQQQQQQ3'; // plain public video (third one for the quota tests)
+const VID_Q = 'QQQQQQQQQQ3'; // public; title with quotes, description with a leading newline and CRLFs
+const TRICKY_TITLE = 'Say "hi" & it\'s <ok>';
+const TRICKY_DESCRIPTION = '\nFirst line\r\nSecond line\r\n';
 const SCHEDULE = '2030-01-01T09:00:00Z';
 
 const videoItem = (id, opts) => ({
   id,
   snippet: {
-    title: opts.title, description: 'desc ' + id, publishedAt: '2024-01-01T00:00:00Z',
+    title: opts.title, description: opts.description ?? 'desc ' + id, publishedAt: '2024-01-01T00:00:00Z',
     categoryId: '22', tags: opts.tags || [], defaultAudioLanguage: 'en',
     thumbnails: {
       medium: { url: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, width: 320, height: 180 },
@@ -42,7 +44,7 @@ const videoItem = (id, opts) => ({
 const fixtures = [
   videoItem(VID_S, { title: 'Scheduled video', privacy: 'private', publishAt: SCHEDULE, recordingDate: '2023-05-10T00:00:00.000Z' }),
   videoItem(VID_P, { title: 'Public video', privacy: 'public', tags: ['keep', 'these'] }),
-  videoItem(VID_Q, { title: 'Third video', privacy: 'public' })
+  videoItem(VID_Q, { title: TRICKY_TITLE, description: TRICKY_DESCRIPTION, privacy: 'public' })
 ];
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -219,6 +221,20 @@ await page.goto(APP, { waitUntil: 'load' });
 await page.locator(`#video-${VID_S}`).waitFor({ state: 'visible', timeout: 20000 });
 ok('L1. pre-v2 cache discarded (fresh load)', counters.playlistItems === 1, 'playlistItems=' + counters.playlistItems);
 ok('L2. fresh title rendered', await page.locator(`#title-${VID_S}`).inputValue() === 'Scheduled video');
+
+// ---- The card form holds the exact values (no false "changed") ----
+ok('N1. title with quotes shown in full', await page.locator(`#title-${VID_Q}`).inputValue() === TRICKY_TITLE, await page.locator(`#title-${VID_Q}`).inputValue());
+ok('N1b. description keeps its leading newline', (await page.locator(`#description-${VID_Q}`).inputValue()).startsWith('\nFirst line'), JSON.stringify(await page.locator(`#description-${VID_Q}`).inputValue()));
+for (const sel of [`#title-${VID_Q}`, `#description-${VID_Q}`]) {
+  await page.focus(sel);
+  await page.dispatchEvent(sel, 'input');
+}
+await page.click(`#tags-container-${VID_Q}`);
+await page.focus(`#title-${VID_P}`);
+ok('N2. untouched card is not marked changed', (await changedIds()).length === 0, JSON.stringify(await changedIds()));
+await page.selectOption(`#privacy-${VID_Q}`, 'unlisted');
+const putN = await saveCard(VID_Q);
+ok('N3. saving another field keeps title and description exactly', putN?.body.snippet?.title === TRICKY_TITLE && putN.body.snippet.description === TRICKY_DESCRIPTION, JSON.stringify(putN?.body.snippet));
 
 // ---- Scheduled publish time (status.publishAt) ----
 ok('S1. scheduled badge on the scheduled video only',

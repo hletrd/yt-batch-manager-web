@@ -1,7 +1,7 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI, YouTubeApiError } from './youtube-api.js';
 import type { VideoData } from './types.js';
-import { arraysEqual, formatDateTime, nextQuotaReset, publishedTime } from './utils/format.js';
+import { arraysEqual, formatDateTime, nextQuotaReset, normalizeNewlines, publishedTime } from './utils/format.js';
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderThumbnailHtml, renderVideoCardHtml, type ThumbnailPreview } from './video-card.js';
@@ -1341,7 +1341,7 @@ class YouTubeBatchManager {
   private videoDiffersFromBaseline(video: VideoData, baseline: VideoData): boolean {
     return (
       (video.title || '') !== (baseline.title || '') ||
-      (video.description || '') !== (baseline.description || '') ||
+      normalizeNewlines(video.description || '') !== normalizeNewlines(baseline.description || '') ||
       (video.privacy_status || '') !== (baseline.privacy_status || '') ||
       (video.publish_at ?? null) !== (baseline.publish_at ?? null) ||
       (video.category_id || '') !== (baseline.category_id || '') ||

@@ -136,6 +136,12 @@ export function renderThumbnailHtml(video: VideoData, preview: ThumbnailPreview 
             </div>`;
 }
 
+// The form must hold the record's exact values, or the card compares as
+// changed (and a save sends the altered text): the title goes through
+// escapeHtmlAttribute because escapeHtml leaves '"' as is, which ended the
+// value attribute at the first quote; and the HTML parser drops one newline
+// right after <textarea>, so one is emitted for it to drop instead of the
+// description's own leading newline.
 export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContext): string {
   return `
         <div class="video-item${ctx.changedVideos.has(video.id) ? ' changed' : ''}" id="video-${video.id}" data-video-id="${video.id}">
@@ -278,7 +284,7 @@ export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContex
               type="text"
               class="form-control title-input"
               id="title-${video.id}"
-              value="${escapeHtml(video.title)}"
+              value="${escapeHtmlAttribute(video.title)}"
               oninput="app.handleTitleChange('${video.id}'); app.updateTitleCounter('${video.id}')"
             />
           </div>
@@ -290,7 +296,7 @@ export function renderVideoCardHtml(video: VideoData, ctx: VideoCardRenderContex
               class="form-control"
               id="description-${video.id}"
               oninput="app.handleDescriptionChange('${video.id}'); app.handleTextareaResize(this); app.updateDescriptionCounter('${video.id}')"
-            >${escapeHtml(video.description)}</textarea>
+            >\n${escapeHtml(video.description)}</textarea>
           </div>
 
           <div class="form-group">

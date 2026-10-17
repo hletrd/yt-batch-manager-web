@@ -124,6 +124,12 @@ export function parseCoordInput(raw: string | undefined, fallback: number | unde
   return Number.isFinite(n) ? n : undefined;
 }
 
+// A <textarea> reports every line break as "\n" whatever the text used, so
+// descriptions are compared with CR/CRLF normalized to LF.
+export function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n?/g, '\n');
+}
+
 export function arraysEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((val, index) => val === b[index]);
 }

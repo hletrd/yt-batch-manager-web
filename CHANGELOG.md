@@ -41,6 +41,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- **Titles containing `"` were cut off at the quote** in the card, so the card
+  showed as changed without an edit and saving it sent the truncated title to
+  YouTube. Descriptions with a leading newline or CRLF line breaks likewise
+  showed as changed; they are now kept exactly.
 - **Saved results now reach the local cache from imported sets too**, so a
   reload no longer shows pre-save values (which a refresh could not correct
   while the quota was exhausted). The cache is written from what YouTube has,
