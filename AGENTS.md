@@ -152,6 +152,12 @@ workarounds.
     leftovers are persisted (`keepUnsavedChanges`) as backup-format records and
     offered back after the next load, re-applied through the same
     baseline-merging sanitizer as an import.
+    **Every request costs quota, even a failed one** ("All API requests, including
+    invalid requests, incur at least a one-point quota cost"), so `FailureProbe`
+    stops a step once its first 3 attempts in a batch fail for one reason
+    (metadata → stop the batch; thumbnail → hold back the remaining thumbnails).
+    Errors are wrapped in `SaveStepError` (step + whether the metadata part was
+    already saved) so the batch summary can say exactly what reached YouTube.
 
 ## Build / test / deploy
 

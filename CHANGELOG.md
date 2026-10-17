@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **Save All no longer repeats a failure every video shares.** When the first 3
+  attempts fail for the same reason (e.g. a channel that may not set custom
+  thumbnails), the rest are not sent — failed requests use quota too. A lasting
+  notice itemizes what was fully saved, what saved only its details (thumbnail
+  still pending), what failed and what was not attempted, with the reasons.
 - **Recovery from a batch save cut short by the API quota.** Save All stops at
   the first `quotaExceeded` instead of failing every remaining video, keeps the
   unsaved changes (including pending thumbnails) in the browser, shows how many

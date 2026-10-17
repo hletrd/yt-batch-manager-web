@@ -124,6 +124,14 @@ changes; then press **Save All** again. If YouTube's thumbnail upload limit is
 hit instead, metadata keeps saving and only the thumbnails are kept for later.
 Logging out discards kept changes.
 
+Every API request uses quota — even one that fails. So if the first 3 videos of
+a Save All fail for the same reason (say, a channel that may not set custom
+thumbnails), the rest are not sent: the remaining thumbnails stay pending while
+other changes keep saving, or, for a failing metadata update, the batch stops.
+Whenever a Save All does not fully succeed, a notice lists exactly what reached
+YouTube: fully saved, details saved but thumbnail still pending, nothing saved,
+and not attempted, with the error reasons and how often each occurred.
+
 ## Guide for developers
 
 ### Prerequisites
