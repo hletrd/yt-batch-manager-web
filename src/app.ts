@@ -269,20 +269,23 @@ class YouTubeBatchManager {
     this.cachedChannelId = undefined;
   }
 
-  private updateVideoCache(): void {
+  // Record saved values in the cache, so a reload shows them without an API
+  // call (which fails while the quota is exhausted). The cache mirrors YouTube,
+  // so it is written from the baselines, never from unsaved edits.
+  private updateVideoCache(savedIds: Iterable<string>): void {
     try {
-      // An imported set must not be persisted: saving one imported video would
-      // overwrite yt_video_cache with thin backup records that lack YouTube-only
-      // fields, degrading the next non-forced load (C2). The thin-cache discard
-      // in loadVideosFromCache stays as defense-in-depth.
+      // An imported set must not replace the cache: it may be partial, and its
+      // records thin (no YouTube-only fields), which would degrade the next
+      // non-forced load (C2). Patch the saved videos into the cache instead.
       if (this.videosSource !== 'youtube') {
-        console.log('Skipping video cache update: current video set came from a file import');
+        const saved = [...savedIds].map(id => this.originalVideosState.get(id)).filter((video): video is VideoData => !!video);
+        videoCache.patchCachedVideos(saved);
         return;
       }
       if (this.state.allVideos.length > 0) {
         // Reuse the in-memory channelId instead of re-parsing the whole cache on
         // every save.
-        this.saveVideosToCache(this.state.allVideos, this.cachedChannelId);
+        this.saveVideosToCache(this.state.allVideos.map(video => this.originalVideosState.get(video.id) ?? video), this.cachedChannelId);
         console.log('Video cache updated with latest changes');
       }
     } catch (error) {
@@ -698,6 +701,7 @@ class YouTubeBatchManager {
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const savedIds: string[] = [];
 
     showLoadingOverlay(
       rendererI18n.t('status.savingBatch', { current: 1, total: changedVideosArray.length }),
@@ -731,6 +735,7 @@ class YouTubeBatchManager {
       const error = await this.saveVideoFromCard(videoId);
       if (error === undefined) {
         successCount++;
+        savedIds.push(videoId);
       } else {
         errorCount++;
         errors.push(`Video ${videoId}: ${error}`);
@@ -755,7 +760,7 @@ class YouTubeBatchManager {
         errorCount === 0 ? 'success' : 'info'
       );
 
-      this.updateVideoCache();
+      this.updateVideoCache(savedIds);
     } else {
       showStatus(
         rendererI18n.t('status.batchSaveFailed', { failed: errorCount }) + firstError,
@@ -1370,7 +1375,7 @@ class YouTubeBatchManager {
       if (!suppressStatus) {
         showStatus(rendererI18n.t('status.videoUpdated'), 'success');
       }
-      this.updateVideoCache();
+      this.updateVideoCache([videoId]);
     } else if (!suppressStatus) {
       showStatus(rendererI18n.t('status.failedToUpdateVideo') + ': ' + error, 'error');
     }

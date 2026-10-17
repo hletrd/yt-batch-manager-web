@@ -251,6 +251,7 @@ const putsF6 = await saveAll();
 const putF6 = putsF6[0];
 ok('F6. save all sends one PUT', putsF6.length === 1, JSON.stringify(putsF6.map(p => p.body.id)));
 ok('F6b. JSON status edits are written', putF6?.body.id === VID_P && putF6.body.status.publicStatsViewable === false && putF6.body.status.selfDeclaredMadeForKids === false && putF6.body.status.embeddable === false, JSON.stringify(putF6?.body.status));
+ok('F7. a save from an imported set reaches the cache', await page.evaluate(id => JSON.parse(localStorage.getItem('yt_video_cache')).videos.find(v => v.id === id)?.public_stats_viewable, VID_P) === false);
 
 // ---- Partial / hand-edited JSON keeps the live values ----
 await importJson([
