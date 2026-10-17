@@ -40,7 +40,14 @@ State that persists in `localStorage`:
 
 Pending (unsaved) thumbnails from a ZIP import live only in memory
 (`thumbnailPreviews` in `app.ts`); they do not survive a reload or the OAuth
-redirect.
+redirect — except when a save is cut short by the quota (rule 11), which
+persists all unsaved changes to IndexedDB (`yt-batch-manager` /
+`unsaved-changes`, see `unsaved-changes.ts`) until they are saved, discarded, or
+the user logs out.
+
+The video cache mirrors YouTube: it is written from the baselines
+(`originalVideosState`), never from live records with unsaved edits. For an
+imported set it is patched by id (`patchCachedVideos`) instead of replaced.
 
 **Backups (JSON / ZIP).** `backup.ts` shapes the JSON export and sanitizes
 imports; `backup-zip.ts` adds thumbnails; `utils/zip.ts` is a dependency-free
@@ -127,6 +134,17 @@ workarounds.
     allows `https://*.ytimg.com`), and local previews are `blob:` URLs (CSP
     `img-src` must keep `blob:`). YouTube's CDN serves the old image for a while
     after an upload, so the uploaded image keeps being shown/exported locally.
+
+11. **Quota is per Google Cloud project (default 10,000 units/day, reset at
+    midnight Pacific Time) and a batch can exhaust it partway.** A
+    `videos.update` is 50 units, `thumbnails.set` ~50. Errors therefore carry
+    YouTube's reason (`YouTubeApiError.reason`): on `quotaExceeded` /
+    `dailyLimitExceeded` Save All stops (every further call would fail); on
+    `uploadRateLimitExceeded` (per-channel thumbnail limit, rolling 24 h) it holds
+    back the remaining thumbnails but keeps saving metadata. Either way the
+    leftovers are persisted (`keepUnsavedChanges`) as backup-format records and
+    offered back after the next load, re-applied through the same
+    baseline-merging sanitizer as an import.
 
 ## Build / test / deploy
 

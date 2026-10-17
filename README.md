@@ -102,7 +102,21 @@ thumbnail skips the metadata update. Notes:
 * Each thumbnail upload costs about 50 units of the 10,000-unit daily quota, and
   YouTube limits how many thumbnails a channel can upload per day
   (`uploadRateLimitExceeded`).
-* Pending thumbnails are kept in memory only: save them before reloading.
+* Pending thumbnails are kept in memory only: save them before reloading
+  (unless a save is cut short by the quota — see below).
+
+### When the API quota runs out mid-save
+
+**Save All** stops at the first `quotaExceeded` instead of failing every
+remaining video. What was saved stays saved (and is written to the local cache,
+so a reload shows it even while the quota is exhausted). Everything still
+unsaved — form edits and pending thumbnails — is kept in this browser
+(IndexedDB), and a notice tells you how many videos were saved and when the
+quota resets (midnight Pacific Time, shown in your local time). You can close
+the tab: the next time the videos load, the app offers to **Restore** the kept
+changes; then press **Save All** again. If YouTube's thumbnail upload limit is
+hit instead, metadata keeps saving and only the thumbnails are kept for later.
+Logging out discards kept changes.
 
 ## Guide for developers
 
@@ -210,6 +224,7 @@ the rendered inline handlers call):
 | `textarea-resize.ts`, `fallback-data.ts` | rAF-throttled auto-resize; offline category/language fallbacks |
 | `utils/format.ts`, `utils/html.ts` | Duration/number formatting & Shorts heuristic; HTML/attribute escaping |
 | `utils/zip.ts` | Dependency-free ZIP reader/writer (STORE/DEFLATE via `CompressionStream`) |
+| `unsaved-changes.ts` | IndexedDB store for changes left unsaved by an exhausted quota |
 | `i18n/` | English/Korean strings and the runtime renderer |
 
 See [`AGENTS.md`](./AGENTS.md) for the architecture notes and the YouTube Data
@@ -225,7 +240,7 @@ for the list of notable changes.
 2. If the problem persists, try to re-create the `credentials.json` file.
 
 ### "403 Forbidden" / quota exceeded when loading videos
-The YouTube Data API has a default quota of 10,000 units/day. The app lists your uploads efficiently (about 9 units per full load), so this is rarely hit. If you do see a `403 quotaExceeded`, the daily quota resets at midnight Pacific Time, or you can request a higher quota in the Google Cloud Console.
+The YouTube Data API has a default quota of 10,000 units/day per Google Cloud project — shared by everyone using the same deployment. The app lists your uploads efficiently (about 9 units per full load), but each saved video costs 50 units and each thumbnail upload about 50 more, so a large batch can use it up (see *When the API quota runs out mid-save* above). If you do see a `403 quotaExceeded`, the daily quota resets at midnight Pacific Time, or you can request a higher quota in the Google Cloud Console.
 
 ### Thumbnail upload fails with "403 Forbidden"
 Custom thumbnails are only available to [verified channels](https://www.youtube.com/verify).

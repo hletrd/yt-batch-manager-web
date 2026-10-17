@@ -9,6 +9,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **Recovery from a batch save cut short by the API quota.** Save All stops at
+  the first `quotaExceeded` instead of failing every remaining video, keeps the
+  unsaved changes (including pending thumbnails) in the browser, shows how many
+  were saved and when the quota resets in local time, and offers to restore them
+  on the next load. Hitting the thumbnail upload limit holds back only the
+  thumbnails.
 - **Batch-replace thumbnails via a ZIP backup.** *Save as ZIP* exports
   `videos.json` plus every video's current thumbnail; replace images, load the
   ZIP back, and the changed ones (detected by SHA-256) are uploaded on save,
@@ -35,6 +41,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- **Saved results now reach the local cache from imported sets too**, so a
+  reload no longer shows pre-save values (which a refresh could not correct
+  while the quota was exhausted). The cache is written from what YouTube has,
+  never from unsaved edits.
 - **Saving a scheduled video no longer cancels its schedule.** `status.publishAt`
   is now read, round-tripped while the video is private, exported as
   `publish_at`, and shown as a badge. Caches from older versions are discarded.
