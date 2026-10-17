@@ -15,6 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   were saved and when the quota resets in local time, and offers to restore them
   on the next load. Hitting the thumbnail upload limit holds back only the
   thumbnails.
+- ZIP thumbnails are compared **visually** with YouTube's current thumbnail
+  when their bytes differ, so a re-encoded or re-saved copy of an unchanged
+  image is not uploaded again, while small edits are still detected.
 - **Batch-replace thumbnails via a ZIP backup.** *Save as ZIP* exports
   `videos.json` plus every video's current thumbnail; replace images, load the
   ZIP back, and the changed ones (detected by SHA-256) are uploaded on save,

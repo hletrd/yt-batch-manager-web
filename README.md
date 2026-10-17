@@ -91,9 +91,15 @@ the current values.
 as `videos.json` plus `thumbnails/<video id>.jpg|png` (the current thumbnail, at
 most 1280×720) and a short `README.txt`. To replace thumbnails, overwrite images
 in `thumbnails/` with new JPEG or PNG files (up to 50 MB; keep the video id as
-the file name), re-zip, and load the ZIP. Each image is compared with the
-`thumbnail_sha256` recorded at export time, so only images you actually
-replaced are uploaded. They show up as *New thumbnail · unsaved* (with a button
+the file name), re-zip, and load the ZIP. Only images you actually changed
+are uploaded: an image is skipped if it is byte-identical to the exported copy
+(`thumbnail_sha256`) or if it *looks* the same as the thumbnail YouTube shows
+now. The visual check matters because YouTube re-encodes every thumbnail, so
+your own original of an unchanged image (or a re-saved copy, or a ZIP you put
+together yourself without hashes) never matches byte for byte; it still
+notices small edits such as one changed digit in the text. It compares against
+YouTube's 1280×720 (or 640×480) thumbnail and uses no API quota; a video that
+has neither size gets its changed file uploaded. They show up as *New thumbnail · unsaved* (with a button
 to discard) and are uploaded when you save. A video whose only change is the
 thumbnail skips the metadata update. Notes:
 

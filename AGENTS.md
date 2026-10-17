@@ -134,6 +134,13 @@ workarounds.
     allows `https://*.ytimg.com`), and local previews are `blob:` URLs (CSP
     `img-src` must keep `blob:`). YouTube's CDN serves the old image for a while
     after an upload, so the uploaded image keeps being shown/exported locally.
+    YouTube also **re-encodes** every thumbnail, so a byte hash alone flags the
+    user's own copy of an unchanged image as changed: an image whose hash differs
+    is compared *visually* (`image-compare.ts`, 160x90 cells cover-fitted to 16:9)
+    with YouTube's current maxres/standard thumbnail (or the one uploaded this
+    session). The thresholds are calibrated so a small edit (one changed digit)
+    still counts as changed — missing an edit is worse than a spare upload — and
+    smaller sizes (medium/high) are too blurry to serve as the reference.
 
 11. **Quota is per Google Cloud project (default 10,000 units/day, reset at
     midnight Pacific Time) and a batch can exhaust it partway.** A
