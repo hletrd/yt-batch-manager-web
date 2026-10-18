@@ -49,6 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- The offer to restore kept changes no longer reappears for changes that
+  already reached YouTube some other way; quota messages now say the quota is
+  shared by everyone using the app.
 - **Titles containing `"` were cut off at the quote** in the card, so the card
   showed as changed without an edit and saving it sent the truncated title to
   YouTube. Descriptions with a leading newline or CRLF line breaks likewise

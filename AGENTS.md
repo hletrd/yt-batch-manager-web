@@ -150,7 +150,8 @@ workarounds.
     `uploadRateLimitExceeded` (per-channel thumbnail limit, rolling 24 h) it holds
     back the remaining thumbnails but keeps saving metadata. Either way the
     leftovers are persisted (`keepUnsavedChanges`) as backup-format records and
-    offered back after the next load, re-applied through the same
+    offered back after the next load (only those that still differ from YouTube;
+    the copy is dropped once none do), re-applied through the same
     baseline-merging sanitizer as an import.
     **Every request costs quota, even a failed one** ("All API requests, including
     invalid requests, incur at least a one-point quota cost"), so `FailureProbe`
