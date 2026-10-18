@@ -775,7 +775,6 @@ class YouTubeBatchManager {
     this.updateSaveAllButton();
 
     const changedVideosArray = Array.from(this.state.changedVideos);
-    let processedCount = 0;
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
@@ -831,7 +830,6 @@ class YouTubeBatchManager {
       attemptedIds.push(videoId);
       const { error, thumbnailDeferred, metadataSaved, thumbnailUploaded } =
         await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailLimitHit || thumbnailsStoppedBy !== undefined });
-      processedCount++;
       if (metadataSaved) probe.succeeded('metadata');
       if (thumbnailUploaded) probe.succeeded('thumbnail');
       if (error === undefined) {
@@ -891,7 +889,7 @@ class YouTubeBatchManager {
           rendererI18n.t('status.batchSaveComplete', {
             successful: successCount,
             failed: errorCount,
-            total: processedCount
+            total: attemptedIds.length
           }),
           errorCount === 0 && detailsOnlyCount + thumbnailPendingCount === 0 ? 'success' : 'info'
         );
@@ -902,7 +900,7 @@ class YouTubeBatchManager {
       // The toast is gone in 3s; anything short of a full success gets a
       // lasting, itemized notice so it is clear what did and did not reach
       // YouTube.
-      const notAttempted = changedVideosArray.length - processedCount;
+      const notAttempted = changedVideosArray.length - attemptedIds.length;
       if (successCount < changedVideosArray.length) {
         const t = rendererI18n.t.bind(rendererI18n);
         const lines = [t('notice.batchResult', { saved: successCount, total: changedVideosArray.length })];
@@ -1096,14 +1094,7 @@ class YouTubeBatchManager {
     });
 
     this.dropPendingThumbnails();
-    let pendingThumbnails = 0;
-    for (const [videoId, blob] of options.thumbnails ?? []) {
-      if (this.videoIndex.has(videoId)) {
-        this.setThumbnailPreview(videoId, blob, true);
-        this.state.changedVideos.add(videoId);
-        pendingThumbnails++;
-      }
-    }
+    const pendingThumbnails = this.stagePendingThumbnails(options.thumbnails ?? []);
 
     await this.renderVideos(true);
     this.updateSaveAllButton();
@@ -1372,6 +1363,20 @@ class YouTubeBatchManager {
     this.thumbnailPreviews.delete(videoId);
     this.refreshThumbnail(videoId);
     this.checkForChanges(videoId);
+  }
+
+  // Mark thumbnails (by video id) as pending uploads of the loaded videos;
+  // returns how many belonged to a loaded video.
+  private stagePendingThumbnails(thumbnails: Iterable<[string, Blob]>): number {
+    let staged = 0;
+    for (const [videoId, blob] of thumbnails) {
+      if (this.videoIndex.has(videoId)) {
+        this.setThumbnailPreview(videoId, blob, true);
+        this.state.changedVideos.add(videoId);
+        staged++;
+      }
+    }
+    return staged;
   }
 
   private setThumbnailPreview(videoId: string, blob: Blob, pending: boolean): void {
@@ -1718,12 +1723,7 @@ class YouTubeBatchManager {
         this.state.changedVideos.add(record.id);
       }
     }
-    for (const [videoId, blob] of stored.thumbnails) {
-      if (this.videoIndex.has(videoId)) {
-        this.setThumbnailPreview(videoId, blob, true);
-        this.state.changedVideos.add(videoId);
-      }
-    }
+    this.stagePendingThumbnails(stored.thumbnails);
 
     await this.renderVideos(true);
     this.updateSaveAllButton();
