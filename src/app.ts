@@ -784,9 +784,9 @@ class YouTubeBatchManager {
     // saves metadata only. Either way the leftovers are kept for later.
     let quotaExhausted = false;
     let thumbnailLimitHit = false;
-    // Set when FailureProbe stops a step: the failure label that stopped it.
-    let metadataStoppedBy: string | undefined;
-    let thumbnailsStoppedBy: string | undefined;
+    // Set when FailureProbe stops a step.
+    let metadataStopped = false;
+    let thumbnailsStopped = false;
     const probe = new FailureProbe();
     // Failure label (reason + step) -> count and one full message.
     const failures = new Map<string, { count: number; example: string }>();
@@ -829,7 +829,7 @@ class YouTubeBatchManager {
       // try/catch here used to count every failed save as a success).
       attemptedIds.push(videoId);
       const { error, thumbnailDeferred, metadataSaved, thumbnailUploaded } =
-        await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailLimitHit || thumbnailsStoppedBy !== undefined });
+        await this.saveVideoFromCard(videoId, { skipThumbnail: thumbnailLimitHit || thumbnailsStopped });
       if (metadataSaved) probe.succeeded('metadata');
       if (thumbnailUploaded) probe.succeeded('thumbnail');
       if (error === undefined) {
@@ -864,9 +864,9 @@ class YouTubeBatchManager {
         failures.set(label, entry);
         if (probe.failed(step, reason)) {
           if (step === 'thumbnail') {
-            thumbnailsStoppedBy = label;
+            thumbnailsStopped = true;
           } else {
-            metadataStoppedBy = label;
+            metadataStopped = true;
             break;
           }
         }
@@ -908,7 +908,7 @@ class YouTubeBatchManager {
         if (thumbnailPendingCount > 0) lines.push(t('notice.thumbnailPending', { count: thumbnailPendingCount }));
         if (nothingSavedCount > 0) lines.push(t('notice.nothingSaved', { count: nothingSavedCount }));
         if (notAttempted > 0) lines.push(t('notice.notAttempted', { count: notAttempted }));
-        if (metadataStoppedBy || thumbnailsStoppedBy) lines.push(t('notice.stoppedRepeating', { count: SYSTEMATIC_FAILURE_PROBE }));
+        if (metadataStopped || thumbnailsStopped) lines.push(t('notice.stoppedRepeating', { count: SYSTEMATIC_FAILURE_PROBE }));
         if (failures.size > 0) {
           const reasons = [...failures].map(([label, { count }]) => `${label} ×${count}`).join(', ');
           lines.push(t('notice.failureReasons', { reasons }), [...failures.values()][0].example);

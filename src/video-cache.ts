@@ -106,11 +106,7 @@ export function patchCachedVideos(saved: VideoData[]): void {
       const video = byId.get(cached.id);
       if (!video) return cached;
       patched++;
-      const next: VideoData = { ...cached };
-      for (const field of SAVED_FIELDS) {
-        (next as unknown as Record<string, unknown>)[field] = video[field];
-      }
-      return next;
+      return { ...cached, ...Object.fromEntries(SAVED_FIELDS.map(field => [field, video[field]])) };
     });
     if (patched > 0) {
       localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(cacheData));
