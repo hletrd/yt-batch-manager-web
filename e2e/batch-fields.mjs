@@ -481,6 +481,7 @@ ok('L4. thumbnail kept pending with a notice', /limit on thumbnail uploads/.test
   await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 1, (await noticeText()) + JSON.stringify(await changedIds()));
 await reloadAndWait();
 ok('L5. imported-set save reached the cache', await page.locator(`#title-${VID_P}`).inputValue() === 'Title from ZIP');
+ok('L5b. restore offer does not blame the quota after the thumbnail limit', /were not saved/.test(await noticeText()) && !/quota/i.test(await noticeText()), await noticeText());
 await page.click('#notice-banner button:has-text("Restore")');
 await page.waitForFunction(() => /Restored/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 10000 });
 const restoredImg = await page.locator(`#video-${VID_S} .video-thumbnail img`).evaluate(async img => {
