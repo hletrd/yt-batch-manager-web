@@ -155,7 +155,7 @@
     "failedToUpdateVideo": "Failed to update video",
     "failedToSaveChanges": "Failed to save changes",
     "failedToLoadVideos": "Failed to load videos",
-    "quotaExceeded": "YouTube API daily quota exceeded. It resets at midnight Pacific Time, or you can request more quota in the Google Cloud Console.",
+    "quotaExceeded": "YouTube API daily quota exceeded. The quota is shared by everyone using this app, so others' use counts too. It resets at midnight Pacific Time, or you can request more quota in the Google Cloud Console.",
     "failedToLogout": "Failed to log out",
     "failedToClearCache": "Failed to clear cache",
     "credentialsNotLoaded": "Credentials not loaded. Check the credentials.json file.",
@@ -197,7 +197,7 @@
     "readme": "YT Batch Manager backup\n\nvideos.json   Video metadata. Edit any field, load this ZIP back with\n              \"Load from file\", review the changes and press Save. A field you\n              delete keeps its current value on YouTube.\nthumbnails/   Each video's current thumbnail, named after its video id.\n\nReplacing thumbnails: overwrite an image in thumbnails/ with a new JPEG or\nPNG (up to 50 MB), keeping the video id as the file name. Only images that\nchange the picture are uploaded: one that looks the same as the current YouTube\nthumbnail (e.g. your own original, or a re-saved copy) is skipped. Leave the\n\"thumbnail_sha256\" values in videos.json as they are.\n\nCustom thumbnails need a verified YouTube channel, and each thumbnail upload\nuses about 50 units of the YouTube API's 10,000-unit daily quota.\n"
   },
   "notice": {
-    "quotaExhausted": "The YouTube API daily quota ran out: saved {saved} of {total} videos. To save the other {remaining}, press Save All again after the quota resets at {resetTime} (midnight Pacific Time).",
+    "quotaExhausted": "The YouTube API daily quota, shared by everyone using this app, ran out: saved {saved} of {total} videos. To save the other {remaining}, press Save All again after the quota resets at {resetTime} (midnight Pacific Time).",
     "thumbnailLimit": "YouTube's limit on thumbnail uploads in the past 24 hours was reached, so {count} thumbnail(s) were not uploaded. Press Save All again later to upload them.",
     "keepFailed": "They could not be kept in this browser's storage, so keep this tab open until they are saved.",
     "unsavedChangesFound": "{count} video change(s) from {date} were not saved and are kept in this browser.",
