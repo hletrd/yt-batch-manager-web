@@ -232,7 +232,7 @@ const saveAll = async () => {
   const before = puts.length;
   await page.evaluate(() => { document.getElementById('status-message').textContent = ''; });
   await page.click('#save-all-btn');
-  await page.waitForFunction(() => /Batch save/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
+  await page.waitForFunction(() => /^Saved \d+ of|^Could not save/.test(document.getElementById('status-message')?.textContent || ''), null, { timeout: 15000 });
   return puts.slice(before);
 };
 
@@ -367,7 +367,7 @@ await page.fill(`#title-${VID_S}`, 'Batch S');
 failPutFor = VID_S;
 await saveAll();
 const batchMsg = await statusText();
-ok('B1. failed save counted as failed', /1 successful, 1 failed/.test(batchMsg), batchMsg);
+ok('B1. failed save counted as failed', /Saved 1 of 2 videos \(1 failed\)/.test(batchMsg), batchMsg);
 const batchNotice = await page.evaluate(() => document.getElementById('notice-banner').textContent);
 ok('B1b. lasting notice itemizes the failure and its reason', /Fully saved: 1 of 2/.test(batchNotice) && /Failed, nothing saved: 1/.test(batchNotice) && batchNotice.includes('Request metadata is invalid'), batchNotice);
 ok('B2. failed video stays marked changed', JSON.stringify(await changedIds()) === JSON.stringify([VID_S]), JSON.stringify(await changedIds()));
@@ -477,7 +477,7 @@ await page.click('#save-all-btn');
 await page.waitForFunction(() => !document.getElementById('notice-banner').hidden, null, { timeout: 15000 });
 const putsL = puts.slice(putsBeforeLimit);
 ok('L3. metadata still saved under the thumbnail limit', putsL.some(x => x.body.id === VID_P && x.body.snippet.title === 'Title from ZIP'), JSON.stringify(putsL.map(x => x.body.id)));
-ok('L4. thumbnail kept pending with a notice', /thumbnail upload limit/.test(await noticeText()) && JSON.stringify(await changedIds()) === JSON.stringify([VID_S]) &&
+ok('L4. thumbnail kept pending with a notice', /limit on thumbnail uploads/.test(await noticeText()) && JSON.stringify(await changedIds()) === JSON.stringify([VID_S]) &&
   await page.locator(`#video-${VID_S} .thumbnail-pending-badge`).count() === 1, (await noticeText()) + JSON.stringify(await changedIds()));
 await reloadAndWait();
 ok('L5. imported-set save reached the cache', await page.locator(`#title-${VID_P}`).inputValue() === 'Title from ZIP');
