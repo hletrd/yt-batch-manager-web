@@ -767,7 +767,7 @@ export class YouTubeAPI {
       );
 
       if (!playlistResponse.ok) {
-        throw new Error(await this.describeError(playlistResponse, 'Failed to fetch videos'));
+        throw await this.apiError(playlistResponse, 'Failed to fetch videos');
       }
 
       const playlistData: PlaylistItemsListResponse = await playlistResponse.json();
@@ -795,7 +795,7 @@ export class YouTubeAPI {
       );
 
       if (!videosResponse.ok) {
-        throw new Error(await this.describeError(videosResponse, 'Failed to fetch video details'));
+        throw await this.apiError(videosResponse, 'Failed to fetch video details');
       }
 
       const videosData: VideoListResponse = await videosResponse.json();
@@ -897,7 +897,7 @@ export class YouTubeAPI {
     );
 
     if (!response.ok) {
-      throw new Error(await this.describeError(response, 'Failed to fetch channel'));
+      throw await this.apiError(response, 'Failed to fetch channel');
     }
 
     const data: ChannelContentDetailsResponse = await response.json();
@@ -912,10 +912,6 @@ export class YouTubeAPI {
 
   // Surface the YouTube API error reason (e.g. quotaExceeded,
   // ACCESS_TOKEN_SCOPE_INSUFFICIENT) instead of a bare status code.
-  private async describeError(response: Response, prefix: string): Promise<string> {
-    return (await this.apiError(response, prefix)).message;
-  }
-
   private async apiError(response: Response, prefix?: string): Promise<YouTubeApiError> {
     let detail = `${response.status}`;
     let reason: string | undefined;

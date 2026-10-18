@@ -14,11 +14,8 @@ const STORE = 'unsaved-changes';
 const SNAPSHOT_KEY = 'snapshot';
 const thumbnailKey = (videoId: string) => `thumb:${videoId}`;
 
-export type InterruptionReason = 'quota' | 'thumbnailLimit';
-
 export interface UnsavedSnapshot {
   savedAt: number;
-  reason: InterruptionReason;
   // Backup-format records (filterVideoDataForBackup) of the desired state.
   records: Record<string, unknown>[];
   // Videos whose pending thumbnail is stored under thumbnailKey(id).
@@ -63,11 +60,11 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 // Replace any previous snapshot with this one.
-export async function saveUnsavedChanges(records: Record<string, unknown>[], thumbnails: ReadonlyMap<string, Blob>, reason: InterruptionReason): Promise<boolean> {
+export async function saveUnsavedChanges(records: Record<string, unknown>[], thumbnails: ReadonlyMap<string, Blob>): Promise<boolean> {
   try {
     await transact('readwrite', store => {
       store.clear();
-      const snapshot: UnsavedSnapshot = { savedAt: Date.now(), reason, records, thumbnailIds: [...thumbnails.keys()] };
+      const snapshot: UnsavedSnapshot = { savedAt: Date.now(), records, thumbnailIds: [...thumbnails.keys()] };
       store.put(snapshot, SNAPSHOT_KEY);
       for (const [videoId, blob] of thumbnails) {
         store.put(blob, thumbnailKey(videoId));

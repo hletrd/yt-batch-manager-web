@@ -200,7 +200,7 @@
     "quotaExhausted": "The YouTube API daily quota ran out: saved {saved} of {total} videos. To save the other {remaining}, press Save All again after the quota resets at {resetTime} (midnight Pacific Time).",
     "thumbnailLimit": "YouTube's limit on thumbnail uploads in the past 24 hours was reached, so {count} thumbnail(s) were not uploaded. Press Save All again later to upload them.",
     "keepFailed": "They could not be kept in this browser's storage, so keep this tab open until they are saved.",
-    "unsavedChangesFound": "{count} video change(s) from {date} could not be saved because the API quota ran out.",
+    "unsavedChangesFound": "{count} video change(s) from {date} were not saved and are kept in this browser.",
     "restore": "Restore",
     "discard": "Discard",
     "dismiss": "Dismiss",

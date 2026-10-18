@@ -54,13 +54,11 @@ async function fingerprint(image: Blob): Promise<Float32Array> {
   }
 }
 
-export interface ThumbnailDifference {
+interface ThumbnailDifference {
   // Mean absolute channel difference (0-255) over the whole image.
   mean: number;
   // Number of 160x90 cells whose largest channel difference exceeds CELL_LIMIT.
   changedCells: number;
-  // Largest channel difference of any cell.
-  largest: number;
 }
 
 // Calibrated on real and synthetic thumbnails, comparing the full-size
@@ -73,11 +71,10 @@ const CELL_LIMIT = 32;
 const MAX_MEAN = 3;
 const MAX_CHANGED_CELLS = 0;
 
-export async function thumbnailDifference(a: Blob, b: Blob): Promise<ThumbnailDifference> {
+async function thumbnailDifference(a: Blob, b: Blob): Promise<ThumbnailDifference> {
   const [first, second] = await Promise.all([fingerprint(a), fingerprint(b)]);
   let total = 0;
   let changedCells = 0;
-  let largestOverall = 0;
   for (let cell = 0; cell < WIDTH * HEIGHT; cell++) {
     let largest = 0;
     for (let channel = 0; channel < 3; channel++) {
@@ -88,9 +85,8 @@ export async function thumbnailDifference(a: Blob, b: Blob): Promise<ThumbnailDi
     if (largest > CELL_LIMIT) {
       changedCells++;
     }
-    largestOverall = Math.max(largestOverall, largest);
   }
-  return { mean: total / (WIDTH * HEIGHT * 3), changedCells, largest: largestOverall };
+  return { mean: total / (WIDTH * HEIGHT * 3), changedCells };
 }
 
 // Whether two images show the same thumbnail. The reference should be at least

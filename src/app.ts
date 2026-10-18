@@ -1644,7 +1644,7 @@ class YouTubeBatchManager {
   // thumbnails in IndexedDB after a save was cut short by the quota or the
   // thumbnail limit, and show a lasting notice of when to retry. Offered back
   // by offerUnsavedChanges on the next load.
-  private async keepUnsavedChanges(reason: unsavedChanges.InterruptionReason, progress: { saved: number; total: number }): Promise<void> {
+  private async keepUnsavedChanges(reason: 'quota' | 'thumbnailLimit', progress: { saved: number; total: number }): Promise<void> {
     const ids = [...this.state.changedVideos];
     const records = ids.map(id => this.desiredRecord(id)).filter((record): record is Record<string, unknown> => !!record);
     const thumbnails = new Map<string, Blob>();
@@ -1654,7 +1654,7 @@ class YouTubeBatchManager {
         thumbnails.set(id, preview.blob);
       }
     }
-    const kept = await unsavedChanges.saveUnsavedChanges(records, thumbnails, reason);
+    const kept = await unsavedChanges.saveUnsavedChanges(records, thumbnails);
 
     const language = rendererI18n.getCurrentLanguage();
     const message = reason === 'quota'
