@@ -1684,21 +1684,38 @@ class YouTubeBatchManager {
     return backup.filterVideoDataForBackup([{ ...structuredClone(video), ...updates }])[0];
   }
 
-  // After a load, offer the changes keepUnsavedChanges stored, if any belong
-  // to the loaded videos.
+  // After a load, offer the changes keepUnsavedChanges stored — only those
+  // that still differ from YouTube. A change that reached YouTube some other
+  // way since (YouTube Studio, another device) would otherwise be offered on
+  // every load; once nothing kept for the loaded videos differs, the copy is
+  // dropped. Changes for videos not loaded now (another channel) are kept.
   private async offerUnsavedChanges(): Promise<void> {
     const stored = await unsavedChanges.loadUnsavedChanges();
     if (!stored) {
       return;
     }
-    const ids = new Set([...stored.snapshot.records.map(record => record.id), ...stored.thumbnails.keys()]);
-    const count = [...ids].filter(id => typeof id === 'string' && this.videoIndex.has(id)).length;
+    const records = backup.sanitizeImportedVideos(stored.snapshot.records, this.originalVideosState).filter(record => {
+      const baseline = this.originalVideosState.get(record.id);
+      return baseline !== undefined && this.videoDiffersFromBaseline(record, baseline);
+    });
+    const thumbnails = new Map<string, Blob>();
+    for (const [videoId, blob] of stored.thumbnails) {
+      if (this.videoIndex.has(videoId) && !await this.thumbnailMatchesCurrent(videoId, blob)) {
+        thumbnails.set(videoId, blob);
+      }
+    }
+
+    const count = new Set([...records.map(record => record.id), ...thumbnails.keys()]).size;
     if (count === 0) {
+      const keptIds = [...stored.snapshot.records.map(record => record.id), ...stored.thumbnails.keys()];
+      if (keptIds.every(id => typeof id === 'string' && this.videoIndex.has(id))) {
+        await unsavedChanges.clearUnsavedChanges();
+      }
       return;
     }
     const date = formatDateTime(new Date(stored.snapshot.savedAt).toISOString(), rendererI18n.getCurrentLanguage());
     showNotice(rendererI18n.t('notice.unsavedChangesFound', { count, date }), [
-      { label: rendererI18n.t('notice.restore'), onClick: () => void this.restoreUnsavedChanges(stored) },
+      { label: rendererI18n.t('notice.restore'), onClick: () => void this.restoreUnsavedChanges(records, thumbnails) },
       {
         label: rendererI18n.t('notice.discard'),
         onClick: () => {
@@ -1709,21 +1726,19 @@ class YouTubeBatchManager {
     ]);
   }
 
-  // Re-apply kept changes on top of the freshly loaded videos, through the same
-  // baseline-merging sanitizer as a backup import; only videos that still
-  // differ from YouTube are marked. The store is cleared as they get saved.
-  private async restoreUnsavedChanges(stored: { snapshot: unsavedChanges.UnsavedSnapshot; thumbnails: Map<string, Blob> }): Promise<void> {
+  // Re-apply the kept changes offerUnsavedChanges found still pending
+  // (records already merged with the baseline by the import sanitizer). The
+  // store is cleared as they get saved.
+  private async restoreUnsavedChanges(records: VideoData[], thumbnails: Map<string, Blob>): Promise<void> {
     hideNotice();
-    for (const record of backup.sanitizeImportedVideos(stored.snapshot.records, this.originalVideosState)) {
+    for (const record of records) {
       const video = this.getVideo(record.id);
-      const baseline = this.originalVideosState.get(record.id);
-      if (!video || !baseline) continue;
-      Object.assign(video, record);
-      if (this.videoDiffersFromBaseline(video, baseline)) {
+      if (video) {
+        Object.assign(video, record);
         this.state.changedVideos.add(record.id);
       }
     }
-    this.stagePendingThumbnails(stored.thumbnails);
+    this.stagePendingThumbnails(thumbnails);
 
     await this.renderVideos(true);
     this.updateSaveAllButton();

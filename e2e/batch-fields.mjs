@@ -468,6 +468,24 @@ ok('Q8. saving after the reset sends the restored edits', putsQ.length === 2 && 
 await reloadAndWait();
 ok('Q9. once saved, nothing is offered again', (await noticeText()) === '', await noticeText());
 
+// A kept change that reaches YouTube some other way (e.g. YouTube Studio)
+// must not keep being offered on every load.
+await page.fill(`#title-${VID_P}`, 'Kept P');
+putsAllowed = puts.length;
+await page.click('#save-all-btn');
+await page.waitForFunction(() => !document.getElementById('notice-banner').hidden, null, { timeout: 15000 });
+putsAllowed = Infinity;
+const fixtureP = fixtures.find(f => f.id === VID_P);
+const titleP = fixtureP.snippet.title;
+fixtureP.snippet.title = 'Kept P';
+await page.evaluate(() => localStorage.removeItem('yt_video_cache'));
+await reloadAndWait();
+ok('K1. a kept change YouTube already has is not offered', (await noticeText()) === '', await noticeText());
+fixtureP.snippet.title = titleP;
+await page.evaluate(() => localStorage.removeItem('yt_video_cache'));
+await reloadAndWait();
+ok('K2. ...and its stale copy is dropped for good', (await noticeText()) === '', await noticeText());
+
 // Thumbnail upload limit: metadata keeps saving, thumbnails are kept.
 await importZip(editedZip);
 thumbnailLimit = true;
