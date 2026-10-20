@@ -103,6 +103,12 @@ has neither size gets its changed file uploaded. They show up as *New thumbnail 
 to discard) and are uploaded when you save. A video whose only change is the
 thumbnail skips the metadata update. Notes:
 
+* **Shorts covers:** Save All saves the video details, but does not upload a
+  Shorts shelf cover. Download the prepared cover from its card, then choose
+  **Set cover in Studio** and upload it there. Prepared covers remain labeled
+  as needing Studio; they are not reported as applied. The image returned by
+  YouTube is available separately for comparison. Keep the source ZIP before
+  reloading, since prepared covers live in memory.
 * Custom thumbnails require a [verified channel](https://www.youtube.com/verify);
   otherwise the upload fails with `403`.
 * Each thumbnail upload costs about 50 units of the 10,000-unit daily quota, and
@@ -218,6 +224,8 @@ cd e2e && npm init -y && npm i playwright
 node e2e.mjs                 # full flow suite (port 8753)
 node regression-language.mjs # focused: empty language codes are omitted (port 8754)
 node batch-fields.mjs        # focused: JSON/ZIP batch edits and status round-trips (port 8755)
+# Serve dist on port 8756 as well:
+node short-covers.mjs        # Shorts Studio routing and whole-portrait comparison
 ```
 
 #### Source layout

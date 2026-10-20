@@ -124,15 +124,25 @@ export function generateResponsiveImageHtml(video: VideoData): string {
 // preview is added, uploaded or discarded, so its texts are filled in here
 // rather than left to the page-wide i18n sweep.
 export function renderThumbnailHtml(video: VideoData, preview: ThumbnailPreview | undefined): string {
+  const short = isLikelyShort(video);
+  const studioCover = short && preview?.pending;
   return `
-            <div class="video-thumbnail${preview?.pending ? ' thumbnail-pending' : ''}" id="thumbnail-${video.id}">
+            <div class="video-thumbnail${preview?.pending ? ' thumbnail-pending' : ''}${studioCover ? ' studio-cover' : ''}" id="thumbnail-${video.id}">
+              <div class="thumbnail-image">
               ${preview ? `<img src="${escapeHtmlAttribute(preview.url)}" alt="Video thumbnail" />` : generateResponsiveImageHtml(video)}
               ${preview?.pending ? `
-              <span class="thumbnail-pending-badge" data-i18n="video.pendingThumbnail">${escapeHtml(rendererI18n.t('video.pendingThumbnail'))}</span>
+              <span class="thumbnail-pending-badge" data-i18n="${studioCover ? 'video.studioCoverPending' : 'video.pendingThumbnail'}">${escapeHtml(rendererI18n.t(studioCover ? 'video.studioCoverPending' : 'video.pendingThumbnail'))}</span>
               <button type="button" class="thumbnail-discard-btn" onclick="app.discardPendingThumbnail('${video.id}')" data-i18n-title="video.discardThumbnail" title="${escapeHtmlAttribute(rendererI18n.t('video.discardThumbnail'))}" aria-label="${escapeHtmlAttribute(rendererI18n.t('video.discardThumbnail'))}">×</button>
               ` : ''}
               <input type="file" id="thumb-input-${video.id}" class="thumbnail-input" accept="image/jpeg,image/png" hidden onchange="app.handleThumbnailUpload('${video.id}', this)" />
               <button type="button" class="thumbnail-replace-btn" onclick="document.getElementById('thumb-input-${video.id}').click()" data-i18n="video.replaceThumbnail">${escapeHtml(rendererI18n.t('video.replaceThumbnail'))}</button>
+              </div>
+              ${short ? `<div class="short-cover-actions">
+                <p>${escapeHtml(rendererI18n.t('video.shortCoverHelp'))}</p>
+                ${preview ? `<button type="button" class="btn btn-secondary" onclick="app.downloadThumbnailCover('${video.id}')">${escapeHtml(rendererI18n.t('video.downloadCover'))}</button>` : ''}
+                <a href="https://studio.youtube.com/video/${video.id}/edit" target="_blank" rel="noopener noreferrer">${escapeHtml(rendererI18n.t('video.openStudioCover'))}</a>
+                ${studioCover ? `<details><summary>${escapeHtml(rendererI18n.t('video.currentThumbnail'))}</summary>${generateResponsiveImageHtml(video)}</details>` : ''}
+              </div>` : ''}
             </div>`;
 }
 

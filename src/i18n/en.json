@@ -101,7 +101,12 @@
     "embeddable": "Allow embedding",
     "publicStatsViewable": "Public stats",
     "pendingThumbnail": "New thumbnail (unsaved)",
-    "discardThumbnail": "Discard new thumbnail"
+    "discardThumbnail": "Discard new thumbnail",
+    "studioCoverPending": "Cover prepared — apply in Studio",
+    "shortCoverHelp": "Save All saves video details. Download the Shorts cover and set it separately in YouTube Studio.",
+    "downloadCover": "Download cover",
+    "openStudioCover": "Set cover in Studio",
+    "currentThumbnail": "Image currently returned by YouTube"
   },
   "license": {
     "standard": "Standard YouTube License",
@@ -179,7 +184,8 @@
     "thumbnailsPending": "{count} new thumbnail(s) will be uploaded on save",
     "thumbnailsSkipped": "{count} thumbnail file(s) skipped (JPEG/PNG up to 50 MB only)",
     "zipMissingJson": "No videos.json found in the ZIP file",
-    "unsavedChangesRestored": "Restored {count} unsaved change(s). Press Save All to save them."
+    "unsavedChangesRestored": "Restored {count} unsaved change(s). Press Save All to save them.",
+    "shortCoversPending": "{count} Shorts cover(s) prepared. Download the cover and apply it in Studio; Save All does not apply these covers."
   },
   "credentials": {
     "notFound": "No Credentials Found",

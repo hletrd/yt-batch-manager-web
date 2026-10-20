@@ -49,6 +49,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- Shorts cover preparation no longer reports an API upload as a successful
+  Shorts shelf change. Covers stay marked for Studio, with an exact download
+  and direct Studio link; Save All still saves metadata and normal thumbnails.
+- Portrait thumbnail comparisons include top/bottom lettering instead of
+  silently comparing only the center landscape crop. Portrait/landscape
+  comparisons are treated as different.
 - Portrait thumbnails imported from ZIP backups now show the complete image
   instead of being cropped into a landscape slot. Desktop previews keep their
   aspect ratio within a 320px-wide, 360px-high area; mobile previews stay bounded.

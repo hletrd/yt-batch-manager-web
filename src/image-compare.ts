@@ -13,45 +13,45 @@ const BLOCK = 4;
 const WIDTH = SAMPLE_WIDTH / BLOCK;
 const HEIGHT = SAMPLE_HEIGHT / BLOCK;
 
-// Draw the image cover-fitted to 16:9 — which crops the letterbox bars of the
-// 4:3 sizes, so every size of one thumbnail lines up — then average 4x4 blocks
-// down to 160x90 in JS. Averaging by hand keeps the result consistent across
-// browsers, whose canvas downscaling quality differs at large factors.
-async function fingerprint(image: Blob): Promise<Float32Array> {
-  const bitmap = await createImageBitmap(image);
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = SAMPLE_WIDTH;
-    canvas.height = SAMPLE_HEIGHT;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) {
-      throw new Error('Canvas 2D is unavailable');
-    }
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    const scale = Math.max(SAMPLE_WIDTH / bitmap.width, SAMPLE_HEIGHT / bitmap.height);
-    const width = bitmap.width * scale;
-    const height = bitmap.height * scale;
-    context.drawImage(bitmap, (SAMPLE_WIDTH - width) / 2, (SAMPLE_HEIGHT - height) / 2, width, height);
-    const pixels = context.getImageData(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT).data;
-
-    const result = new Float32Array(WIDTH * HEIGHT * 3);
-    for (let y = 0; y < SAMPLE_HEIGHT; y++) {
-      for (let x = 0; x < SAMPLE_WIDTH; x++) {
-        const source = (y * SAMPLE_WIDTH + x) * 4;
-        const target = (Math.floor(y / BLOCK) * WIDTH + Math.floor(x / BLOCK)) * 3;
-        result[target] += pixels[source];
-        result[target + 1] += pixels[source + 1];
-        result[target + 2] += pixels[source + 2];
-      }
-    }
-    for (let i = 0; i < result.length; i++) {
-      result[i] /= BLOCK * BLOCK;
-    }
-    return result;
-  } finally {
-    bitmap.close();
+// Average 4x4 blocks to a landscape 160x90 or portrait 90x160 grid.
+// Landscape removes the classic YouTube 4:3 letterbox; portrait keeps every
+// edge. Averaging by hand keeps downscaling consistent across browsers.
+function fingerprint(bitmap: ImageBitmap, portrait: boolean): Float32Array {
+  const sampleWidth = portrait ? SAMPLE_HEIGHT : SAMPLE_WIDTH;
+  const sampleHeight = portrait ? SAMPLE_WIDTH : SAMPLE_HEIGHT;
+  const columns = sampleWidth / BLOCK;
+  const canvas = document.createElement('canvas');
+  canvas.width = sampleWidth;
+  canvas.height = sampleHeight;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) {
+    throw new Error('Canvas 2D is unavailable');
   }
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  // Portrait covers must include the top/bottom lettering. Only landscape
+  // references use the historical crop that removes YouTube's 4:3 bars.
+  const fit = portrait ? Math.min : Math.max;
+  const scale = fit(sampleWidth / bitmap.width, sampleHeight / bitmap.height);
+  const width = bitmap.width * scale;
+  const height = bitmap.height * scale;
+  context.drawImage(bitmap, (sampleWidth - width) / 2, (sampleHeight - height) / 2, width, height);
+  const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+
+  const result = new Float32Array(WIDTH * HEIGHT * 3);
+  for (let y = 0; y < sampleHeight; y++) {
+    for (let x = 0; x < sampleWidth; x++) {
+      const source = (y * sampleWidth + x) * 4;
+      const target = (Math.floor(y / BLOCK) * columns + Math.floor(x / BLOCK)) * 3;
+      result[target] += pixels[source];
+      result[target + 1] += pixels[source + 1];
+      result[target + 2] += pixels[source + 2];
+    }
+  }
+  for (let i = 0; i < result.length; i++) {
+    result[i] /= BLOCK * BLOCK;
+  }
+  return result;
 }
 
 interface ThumbnailDifference {
@@ -72,21 +72,32 @@ const MAX_MEAN = 3;
 const MAX_CHANGED_CELLS = 0;
 
 async function thumbnailDifference(a: Blob, b: Blob): Promise<ThumbnailDifference> {
-  const [first, second] = await Promise.all([fingerprint(a), fingerprint(b)]);
-  let total = 0;
-  let changedCells = 0;
-  for (let cell = 0; cell < WIDTH * HEIGHT; cell++) {
-    let largest = 0;
-    for (let channel = 0; channel < 3; channel++) {
-      const difference = Math.abs(first[cell * 3 + channel] - second[cell * 3 + channel]);
-      total += difference;
-      largest = Math.max(largest, difference);
+  const bitmaps = await Promise.allSettled([createImageBitmap(a), createImageBitmap(b)]);
+  const images = bitmaps.filter((result): result is PromiseFulfilledResult<ImageBitmap> => result.status === 'fulfilled').map(result => result.value);
+  try {
+    if (images.length !== 2) throw new Error('Undecodable thumbnail');
+    const portrait = images.map(image => image.height > image.width);
+    // A landscape API thumbnail cannot prove that a Shorts portrait cover is
+    // applied. Conservatively keep it pending instead of dropping edge edits.
+    if (portrait[0] !== portrait[1]) return { mean: Infinity, changedCells: WIDTH * HEIGHT };
+    const [first, second] = images.map(image => fingerprint(image, portrait[0]));
+    let total = 0;
+    let changedCells = 0;
+    for (let cell = 0; cell < WIDTH * HEIGHT; cell++) {
+      let largest = 0;
+      for (let channel = 0; channel < 3; channel++) {
+        const difference = Math.abs(first[cell * 3 + channel] - second[cell * 3 + channel]);
+        total += difference;
+        largest = Math.max(largest, difference);
+      }
+      if (largest > CELL_LIMIT) {
+        changedCells++;
+      }
     }
-    if (largest > CELL_LIMIT) {
-      changedCells++;
-    }
+    return { mean: total / (WIDTH * HEIGHT * 3), changedCells };
+  } finally {
+    images.forEach(image => image.close());
   }
-  return { mean: total / (WIDTH * HEIGHT * 3), changedCells };
 }
 
 // Whether two images show the same thumbnail. The reference should be at least

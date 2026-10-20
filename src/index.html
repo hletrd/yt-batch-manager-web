@@ -399,8 +399,23 @@
 
     .video-thumbnail {
       flex-shrink: 0;
+      align-self: flex-start;
+      max-width: 100%;
       position: relative;
     }
+
+    .thumbnail-image { position: relative; }
+
+    .short-cover-actions {
+      max-width: 320px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .short-cover-actions p { margin: 8px 0; color: var(--text-secondary); }
+    .short-cover-actions a { color: var(--accent-primary); margin-left: 8px; }
+    .short-cover-actions details { margin-top: 8px; }
+    .short-cover-actions summary { cursor: pointer; }
 
     .video-thumbnail img {
       width: 320px;
@@ -455,6 +470,8 @@
       font-size: 11px;
       font-weight: 600;
     }
+
+    .studio-cover .thumbnail-pending-badge { background: #805500; }
 
     .thumbnail-discard-btn {
       position: absolute;

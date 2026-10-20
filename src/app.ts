@@ -1,7 +1,7 @@
 import rendererI18n from './i18n/renderer-i18n.js';
 import { YouTubeAPI, YouTubeApiError } from './youtube-api.js';
 import type { VideoData } from './types.js';
-import { arraysEqual, formatDateTime, nextQuotaReset, normalizeNewlines, publishedTime } from './utils/format.js';
+import { arraysEqual, formatDateTime, isLikelyShort, nextQuotaReset, normalizeNewlines, publishedTime } from './utils/format.js';
 import * as videoCache from './video-cache.js';
 import * as tempChanges from './temp-changes.js';
 import { DEFAULT_THUMBNAIL, renderThumbnailHtml, renderVideoCardHtml, type ThumbnailPreview } from './video-card.js';
@@ -1095,6 +1095,7 @@ class YouTubeBatchManager {
 
     this.dropPendingThumbnails();
     const pendingThumbnails = this.stagePendingThumbnails(options.thumbnails ?? []);
+    const studioCovers = [...this.thumbnailPreviews].filter(([id, preview]) => preview.pending && isLikelyShort(this.getVideo(id)!)).length;
 
     await this.renderVideos(true);
     this.updateSaveAllButton();
@@ -1102,7 +1103,8 @@ class YouTubeBatchManager {
     const skipped = options.skippedThumbnails ?? 0;
     const message = [
       rendererI18n.t('status.videosImported', { count: videoData.length }),
-      pendingThumbnails > 0 ? rendererI18n.t('status.thumbnailsPending', { count: pendingThumbnails }) : '',
+      pendingThumbnails > studioCovers ? rendererI18n.t('status.thumbnailsPending', { count: pendingThumbnails - studioCovers }) : '',
+      studioCovers > 0 ? rendererI18n.t('status.shortCoversPending', { count: studioCovers }) : '',
       skipped > 0 ? rendererI18n.t('status.thumbnailsSkipped', { count: skipped }) : ''
     ].filter(Boolean).join('. ');
     showStatus(message, skipped > 0 ? 'info' : 'success');
@@ -1317,6 +1319,16 @@ class YouTubeBatchManager {
       return;
     }
 
+    // An observed thumbnails.set HTTP200 did not update the Shorts cover.
+    // Keep the design available for Studio instead of claiming it was applied.
+    const video = this.getVideo(videoId);
+    if (video && isLikelyShort(video)) {
+      this.setThumbnailPreview(videoId, file, true);
+      this.checkForChanges(videoId);
+      showStatus(rendererI18n.t('status.shortCoversPending', { count: 1 }), 'info');
+      return;
+    }
+
     const btn = document.querySelector(
       `#video-${videoId} .thumbnail-replace-btn`
     ) as HTMLButtonElement | null;
@@ -1339,6 +1351,15 @@ class YouTubeBatchManager {
         btn.disabled = false;
       }
     }
+  }
+
+  downloadThumbnailCover(videoId: string): void {
+    const preview = this.thumbnailPreviews.get(videoId);
+    if (!preview) return;
+    const link = document.createElement('a');
+    link.href = preview.url;
+    link.download = `${videoId}-cover.${preview.blob.type === 'image/png' ? 'png' : 'jpg'}`;
+    link.click();
   }
 
   // Whether `image` shows the thumbnail YouTube has now: the one uploaded this
@@ -1372,7 +1393,7 @@ class YouTubeBatchManager {
     for (const [videoId, blob] of thumbnails) {
       if (this.videoIndex.has(videoId)) {
         this.setThumbnailPreview(videoId, blob, true);
-        this.state.changedVideos.add(videoId);
+        if (!isLikelyShort(this.getVideo(videoId)!)) this.state.changedVideos.add(videoId);
         staged++;
       }
     }
@@ -1472,7 +1493,8 @@ class YouTubeBatchManager {
 
     const updateBtn = document.getElementById(`update-btn-${videoId}`) as HTMLButtonElement;
 
-    const hasChanges = this.hasMetadataChanges(videoId, video) || this.thumbnailPreviews.get(videoId)?.pending === true;
+    const hasChanges = this.hasMetadataChanges(videoId, video) ||
+      (!isLikelyShort(video) && this.thumbnailPreviews.get(videoId)?.pending === true);
 
     if (hasChanges) {
       this.markChanged(videoId);
@@ -1618,7 +1640,7 @@ class YouTubeBatchManager {
     // A thumbnail-only change skips videos.update: there is nothing else to
     // send, and it costs 50 quota units.
     const thumbnail = this.thumbnailPreviews.get(videoId);
-    const pendingThumbnail = thumbnail?.pending ? thumbnail : undefined;
+    const pendingThumbnail = thumbnail?.pending && !isLikelyShort(video) ? thumbnail : undefined;
     let metadataSaved = false;
     if (!pendingThumbnail || this.hasMetadataChanges(videoId, video)) {
       try {
