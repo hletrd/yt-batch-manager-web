@@ -53,6 +53,8 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 // A real 16x9 JPEG (left half black, right half white), used as the "new"
 // thumbnail a user drops into the ZIP; it must look different from PNG.
 const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMABAQEBAQEBgQEBgkGBgYJDAkJCQkMDwwMDAwMDxIPDw8PDw8SEhISEhISEhUVFRUVFRkZGRkZHBwcHBwcHBwcHP/bAEMBBAUFBwcHDAcHDB0UEBQdHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHf/dAAQAAf/aAAwDAQACEQMRAD8A/P8Ar9/q/AGv3+oA/9k=', 'base64');
+// A 9:16 cover with distinct top/middle/bottom bands for portrait preview checks.
+const PORTRAIT = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAFoAAACgCAIAAAADw+wqAAABTUlEQVR4nO3SsQ3CQBBFQZ9zeiO+IlyLS6QRy0QgHi3cTLTa8OmPe86Nj/17Icc/6wg5Qo6QI+QIOUKOkCPkCDlCjpAj5Ag5Qo6QI+QIOUKOkCPkCDlCjpAj5Ag5Qo6QI+QIOUKOkCPkCDlCjpAj5IjxOK5+lmYdIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBHj+Tr7WZp1hBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhR8gRcoQcIUfIEXKEHCFHyBFyhBwhx/brDXPRBinoPspnAAAAAElFTkSuQmCC', 'base64');
 const counters = { playlistItems: 0 };
 const puts = [];
 const thumbnailUploads = [];
@@ -427,6 +429,37 @@ ok('T10. discarding the pending thumbnail unmarks a thumbnail-only change', !(aw
 writeFileSync(join(dir1, `thumbnails/${VID_P}.png`), 'not an image');
 await importZip(zipFolder(dir1));
 ok('T11. non-image thumbnail skipped and reported', /1 thumbnail file\(s\) skipped/.test(await statusText()) && await page.locator(`#video-${VID_P} .thumbnail-pending-badge`).count() === 0, await statusText());
+// Imported portrait covers must show the whole image at desktop/mobile sizes.
+writeFileSync(join(dir1, `thumbnails/${VID_S}.png`), PORTRAIT);
+writeFileSync(join(dir1, `thumbnails/${VID_P}.png`), JPEG);
+await importZip(zipFolder(dir1));
+const previewMetrics = async id => page.locator(`#video-${id} .video-thumbnail img`).evaluate(async img => {
+  await img.decode();
+  const style = getComputedStyle(img);
+  return { fit: style.objectFit, width: img.clientWidth, height: img.clientHeight,
+    naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
+    pageOverflow: document.documentElement.scrollWidth > innerWidth };
+});
+await page.setViewportSize({ width: 1280, height: 900 });
+const portraitDesktop = await previewMetrics(VID_S);
+const landscapeDesktop = await previewMetrics(VID_P);
+ok('T13. desktop portrait is complete and tall enough to review', portraitDesktop.fit === 'contain' &&
+  portraitDesktop.naturalWidth === 90 && portraitDesktop.naturalHeight === 160 &&
+  portraitDesktop.height >= 350 && portraitDesktop.height <= 360 && !portraitDesktop.pageOverflow,
+  JSON.stringify(portraitDesktop));
+ok('T14. desktop landscape keeps its 16:9 preview', landscapeDesktop.fit === 'contain' &&
+  Math.abs(landscapeDesktop.width / landscapeDesktop.height - 16 / 9) < 0.02,
+  JSON.stringify(landscapeDesktop));
+await page.setViewportSize({ width: 390, height: 844 });
+for (const [id, label] of [[VID_S, 'portrait'], [VID_P, 'landscape']]) {
+  const metrics = await previewMetrics(id);
+  ok(`T15. mobile ${label} stays complete within the viewport`, metrics.fit === 'contain' &&
+    metrics.width <= 390 && metrics.height <= 400 && !metrics.pageOverflow, JSON.stringify(metrics));
+}
+await page.setViewportSize({ width: 1280, height: 900 });
+const portraitExport = unzipTo(await exportZip());
+ok('T16. preview layout leaves exported portrait bytes untouched',
+  readFileSync(join(portraitExport, `thumbnails/${VID_S}.png`)).equals(PORTRAIT));
 rmSync(join(dir1, 'videos.json'));
 await importZip(zipFolder(dir1));
 ok('T12. ZIP without videos.json is rejected clearly', (await statusText()).includes('No videos.json'), await statusText());

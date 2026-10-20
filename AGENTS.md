@@ -38,6 +38,11 @@ State that persists in `localStorage`:
 | `yt_temp_form_changes` | Unsaved edits stashed across the OAuth redirect |
 | `theme` | Light/dark preference |
 
+Thumbnail previews must display the complete image, including portrait ZIP
+replacements. Keep `object-fit: contain` with bounded automatic height; do not
+force every image into a cropped 16:9 slot. Test portrait and landscape images
+at desktop and mobile sizes. Preview CSS must not resample upload bytes.
+
 Pending (unsaved) thumbnails from a ZIP import live only in memory
 (`thumbnailPreviews` in `app.ts`); they do not survive a reload or the OAuth
 redirect — except when a save is cut short by the quota (rule 11), which

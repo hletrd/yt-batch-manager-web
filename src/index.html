@@ -404,8 +404,9 @@
 
     .video-thumbnail img {
       width: 320px;
-      height: 180px;
-      object-fit: cover;
+      height: auto;
+      max-height: 360px;
+      object-fit: contain;
       border-radius: 8px;
       border: 1px solid var(--border-color);
       background: var(--bg-tertiary);

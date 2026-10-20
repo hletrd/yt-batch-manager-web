@@ -111,6 +111,9 @@ thumbnail skips the metadata update. Notes:
 * Pending thumbnails are kept in memory only: save them before reloading
   (unless a save is cut short by the quota — see below).
 
+* Portrait thumbnail previews show the full image without cropping. The
+  preview layout does not resize or alter the file uploaded to YouTube.
+
 ### When the API quota runs out mid-save
 
 **Save All** stops at the first `quotaExceeded` instead of failing every

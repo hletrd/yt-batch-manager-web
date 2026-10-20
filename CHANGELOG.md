@@ -49,6 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- Portrait thumbnails imported from ZIP backups now show the complete image
+  instead of being cropped into a landscape slot. Desktop previews keep their
+  aspect ratio within a 320px-wide, 360px-high area; mobile previews stay bounded.
 - The offer to restore kept changes no longer reappears for changes that
   already reached YouTube some other way; quota messages now say the quota is
   shared by everyone using the app.
