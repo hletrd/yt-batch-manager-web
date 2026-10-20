@@ -49,6 +49,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- Prepared-cover status labels sit below the artwork so they do not cover
+  artist logos or lettering.
 - Shorts cover preparation no longer reports an API upload as a successful
   Shorts shelf change. Covers stay marked for Studio, with an exact download
   and direct Studio link; Save All still saves metadata and normal thumbnails.

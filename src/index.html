@@ -471,7 +471,15 @@
       font-weight: 600;
     }
 
-    .studio-cover .thumbnail-pending-badge { background: #805500; }
+    .studio-cover .thumbnail-pending-badge {
+      position: static;
+      display: block;
+      width: fit-content;
+      margin-top: 8px;
+      background: #805500;
+    }
+    .studio-cover .thumbnail-image > img { border-color: var(--border-color); }
+    .studio-cover .thumbnail-replace-btn { bottom: 40px; }
 
     .thumbnail-discard-btn {
       position: absolute;

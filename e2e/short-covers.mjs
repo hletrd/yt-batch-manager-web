@@ -52,6 +52,10 @@ const cover=await page.evaluate(async ([id,rows])=>{
   return Array.from(bytes);
 },[SHORT,videos]);
 assert.match(await page.locator(`#thumbnail-${SHORT}`).innerText(),/apply in Studio/);
+assert.ok(await page.locator(`#thumbnail-${SHORT}`).evaluate(async block=>{
+  const img=block.querySelector('img');await img.decode();
+  return block.querySelector('.thumbnail-pending-badge').getBoundingClientRect().top >= img.getBoundingClientRect().bottom;
+}),'status must not cover the actual artwork');
 assert.match(await page.locator('#status-message').innerText(),/Save All does not apply/);
 assert.equal(await page.locator('.video-item.changed').count(),0,'a Studio cover must not create an API save');
 assert.equal(await page.locator(`#thumbnail-${SHORT} a`).getAttribute('href'),`https://studio.youtube.com/video/${SHORT}/edit`);
