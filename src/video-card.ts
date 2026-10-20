@@ -9,6 +9,7 @@ import rendererI18n from './i18n/renderer-i18n.js';
 import type { VideoData } from './types.js';
 import { formatDateTime, formatDuration, formatNumber, isLikelyShort } from './utils/format.js';
 import { escapeHtml, escapeHtmlAttribute } from './utils/html.js';
+import { shortsThumbnailSources } from './thumbnail-source.js';
 
 // 16:9 transparent placeholder (muted play glyph). Transparent so the themed
 // .video-thumbnail img background shows through in both light and dark mode,
@@ -84,6 +85,14 @@ export function generateResponsiveImageHtml(video: VideoData): string {
   }
 
   const fallbackUrl = video.thumbnail_url || DEFAULT_THUMBNAIL;
+  const portrait = shortsThumbnailSources(video);
+  if (portrait.length > 0) {
+    return `<img src="${escapeHtmlAttribute(portrait[0])}"
+      data-next-thumbnail="${escapeHtmlAttribute(portrait[1])}"
+      data-fallback-thumbnail="${escapeHtmlAttribute(video.thumbnails?.maxres?.url || fallbackUrl)}"
+      alt="Video thumbnail" loading="lazy" onload="app.handlePortraitThumbnailLoad(this)"
+      onerror="app.handleImageError(this)" />`;
+  }
 
   const srcsetParts: string[] = [];
   const sizesMap: { [key: string]: number } = {

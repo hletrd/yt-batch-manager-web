@@ -89,7 +89,8 @@ the current values.
 
 **Thumbnails: Functions → Save as ZIP (with thumbnails)** exports the same JSON
 as `videos.json` plus `thumbnails/<video id>.jpg|png` (the current thumbnail, at
-most 1280×720) and a short `README.txt`. To replace thumbnails, overwrite images
+most 1280×720 for classic video thumbnails; Shorts use the native portrait
+cover when available) and a short `README.txt`. To replace thumbnails, overwrite images
 in `thumbnails/` with new JPEG or PNG files (up to 50 MB; keep the video id as
 the file name), re-zip, and load the ZIP. Only images you actually changed
 are uploaded: an image is skipped if it is byte-identical to the exported copy
@@ -98,11 +99,15 @@ now. The visual check matters because YouTube re-encodes every thumbnail, so
 your own original of an unchanged image (or a re-saved copy, or a ZIP you put
 together yourself without hashes) never matches byte for byte; it still
 notices small edits such as one changed digit in the text. It compares against
-YouTube's 1280×720 (or 640×480) thumbnail and uses no API quota; a video that
-has neither size gets its changed file uploaded. They show up as *New thumbnail · unsaved* (with a button
+the public portrait cover for Shorts, or YouTube's 1280×720 (or 640×480)
+thumbnail for regular videos, without using API quota. A regular video with no
+comparable image keeps its changed file pending for upload. They show up as *New thumbnail · unsaved* (with a button
 to discard) and are uploaded when you save. A video whose only change is the
 thumbnail skips the metadata update. Notes:
 
+* Shorts display, comparison and ZIP export prefer the public portrait image
+  observed on YouTube's Shorts shelf, with automatic-frame/API-image fallbacks.
+  The CDN filenames are observed conventions, not a guaranteed API contract.
 * **Shorts covers:** Save All saves the video details, but does not upload a
   Shorts shelf cover. Download the prepared cover from its card, then choose
   **Set cover in Studio** and upload it there. Prepared covers remain labeled

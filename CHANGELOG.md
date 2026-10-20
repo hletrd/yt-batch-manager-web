@@ -49,6 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Data API gotchas the app works around.
 
 ### Fixed
+- Shorts display, ZIP export and image comparison now prefer the actual public
+  portrait cover, with fallbacks when the observed CDN paths are unavailable.
+  Broken responsive-image srcsets no longer override the fallback image.
 - Prepared-cover status labels sit below the artwork so they do not cover
   artist logos or lettering.
 - Shorts cover preparation no longer reports an API upload as a successful

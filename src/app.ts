@@ -1534,7 +1534,24 @@ class YouTubeBatchManager {
     autoResizeTextarea(textarea);
   }
 
+  handlePortraitThumbnailLoad(img: HTMLImageElement): void {
+    // A missing CDN portrait may itself return a decodable landscape image.
+    // An img load event alone therefore does not establish a portrait cover.
+    if ((img.dataset.nextThumbnail || img.dataset.fallbackThumbnail) && img.naturalHeight <= img.naturalWidth) {
+      this.handleImageError(img);
+    }
+  }
+
   handleImageError(img: HTMLImageElement): void {
+    img.removeAttribute('srcset');
+    img.removeAttribute('sizes');
+    const next = img.dataset.nextThumbnail || img.dataset.fallbackThumbnail;
+    if (next) {
+      if (img.dataset.nextThumbnail) delete img.dataset.nextThumbnail;
+      else delete img.dataset.fallbackThumbnail;
+      img.src = next;
+      return;
+    }
     if (img.src !== DEFAULT_THUMBNAIL) {
       img.src = DEFAULT_THUMBNAIL;
     }

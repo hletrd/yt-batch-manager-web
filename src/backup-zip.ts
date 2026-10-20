@@ -5,7 +5,7 @@
 //   videos.json             filterVideoDataForBackup records, plus per video
 //                           "thumbnail" (path inside the ZIP, or null) and
 //                           "thumbnail_sha256" (hash of the exported image)
-//   thumbnails/<id>.jpg|png the current thumbnail (at most 1280x720)
+//   thumbnails/<id>.jpg|png the current thumbnail (native portrait for Shorts)
 //   README.txt              how to use it, in the UI language
 //
 // On import a thumbnail counts as changed — and is uploaded on save — only
@@ -19,6 +19,7 @@
 import { VIDEO_ID_PATTERN } from './backup.js';
 import type { VideoData } from './types.js';
 import { createZip, readZip, type ZipEntry, type ZipInputEntry } from './utils/zip.js';
+import { shortsThumbnailSources } from './thumbnail-source.js';
 
 // thumbnails.set accepts JPEG or PNG up to 50 MB.
 export const MAX_THUMBNAIL_BYTES = 50 * 1024 * 1024;
@@ -71,19 +72,19 @@ async function fetchImage(url: string, init?: RequestInit): Promise<Uint8Array<A
   }
 }
 
-// YouTube's current thumbnail of a video at a size fit for a visual
-// comparison (see image-compare.ts): maxres, else the 640x480 standard size.
+// YouTube's current portrait cover for a likely Short, otherwise maxres or
+// the 640x480 standard size suitable for image-compare.ts.
 // Smaller sizes are too blurry to rule out a small edit, so without these
 // there is nothing to compare against (null), and the image counts as changed.
 export async function fetchComparableThumbnail(video: VideoData): Promise<Blob | null> {
-  const url = video.thumbnails?.maxres?.url || video.thumbnails?.standard?.url;
-  if (!url) {
-    return null;
+  const classic = video.thumbnails?.maxres?.url || video.thumbnails?.standard?.url;
+  for (const url of [...shortsThumbnailSources(video), ...(classic ? [classic] : [])]) {
+    // Revalidate: a just-replaced thumbnail keeps its URL.
+    const data = await fetchImage(url, { cache: 'no-cache' });
+    const type = data ? sniffImageType(data) : null;
+    if (data && type) return new Blob([data], { type });
   }
-  // Revalidate: a just-replaced thumbnail keeps its URL.
-  const data = await fetchImage(url, { cache: 'no-cache' });
-  const type = data ? sniffImageType(data) : null;
-  return data && type ? new Blob([data], { type }) : null;
+  return null;
 }
 
 // A thumbnail the app already holds locally: one imported but not yet
@@ -117,7 +118,14 @@ export async function buildBackupZip(videos: VideoData[], options: BuildBackupZi
       const { video, record } = item;
       const local = options.localThumbnail(video.id);
       const url = exportThumbnailUrl(video);
-      const data = local ? new Uint8Array(await local.blob.arrayBuffer()) : url ? await fetchImage(url) : null;
+      let data = local ? new Uint8Array(await local.blob.arrayBuffer()) : null;
+      if (!local) {
+        for (const source of [...shortsThumbnailSources(video), ...(url ? [url] : [])]) {
+          data = await fetchImage(source, { cache: 'no-cache' });
+          if (data && sniffImageType(data)) break;
+          data = null;
+        }
+      }
       const type = data ? sniffImageType(data) : null;
       if (data && type) {
         const path = `thumbnails/${video.id}.${EXTENSIONS[type]}`;

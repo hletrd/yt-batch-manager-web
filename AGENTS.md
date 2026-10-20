@@ -142,8 +142,8 @@ workarounds.
     YouTube also **re-encodes** every thumbnail, so a byte hash alone flags the
     user's own copy of an unchanged image as changed: an image whose hash differs
     is compared *visually* (`image-compare.ts`, landscape 160x90 / portrait 90x160 cells)
-    with YouTube's current maxres/standard thumbnail (or the one uploaded this
-    session). The thresholds are calibrated so a small edit (one changed digit)
+    with the public portrait cover for Shorts, otherwise YouTube's current
+    maxres/standard thumbnail (or the one uploaded this session). The thresholds are calibrated so a small edit (one changed digit)
     still counts as changed — missing an edit is worse than a spare upload — and
     smaller sizes (medium/high) are too blurry to serve as the reference.
     Portrait comparison includes the entire cover, never a center 16:9 crop;
@@ -152,7 +152,11 @@ workarounds.
     portrait cover. Keep these local designs pending for Studio, exclude them
     from API-save counts, and provide a byte-preserving download/deep link.
     Never infer Shorts shelf success from a local preview or a successful API
-    response. isLikelyShort remains a dimensions/duration heuristic; a short
+    response. Read `thumbnail-source.ts`: public shelf images observed on
+    2026-10-20 use sardefault.jpg (custom) / oar2.jpg (automatic), falling back
+    to the API URL. These are CDN conventions, not documented Data API fields.
+    Display, comparison and ZIP export share this order; image errors must
+    remove stale srcset and exhaust the fallbacks without looping. isLikelyShort remains a dimensions/duration heuristic; a short
     landscape video with known dimensions retains normal thumbnail uploads.
 
 11. **Quota is per Google Cloud project (default 10,000 units/day, reset at
